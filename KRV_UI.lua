@@ -1,47 +1,47 @@
 --═══════════════════════════════════════════════════════════════════════════════
---  KRV INTERFACE SUITE v1.0 — lib custom légère, drop-in Starlight Gen1
---  Même API que https://raw.githubusercontent.com/Nebula-Softworks/Starlight-Interface-Suite/Gen1/Source.lua
---  Mais réécrite de zéro : zéro lag (aucune boucle par frame, aucun tween en
---  masse, aucun HttpGet d'icônes), zéro bug (tout est guardé : destroyed flag,
---  pcall sur chaque callback, connexions toutes tracées pour Destroy).
+--  KRV INTERFACE SUITE v2.0 — UI 100% custom (Starlight entièrement retiré)
+--  Réécrite de zéro pour le hub KRV : aucune dépendance réseau, aucune boucle
+--  par frame, aucun tween en masse. Chaque callback est protégé (destroyed
+--  flag + pcall), chaque connexion est tracée pour un Destroy() total.
 --
---  Usage : place ce fichier à côté du hub, ou charge-le via loadstring.
---  Le hub KRV le détecte (readfile "KRV_UI.lua") avant de tenter l'URL distante.
+--  API : CreateWindow / CreateTabSection / CreateTab / CreateGroupbox /
+--  BuildConfigGroupbox / CreateToggle / CreateSlider / CreateButton /
+--  CreateInput / CreateLabel / AddBind / AddDropdown / AddColorPicker /
+--  Notification / LoadAutoloadConfig / OnDestroy / Destroy
 --═══════════════════════════════════════════════════════════════════════════════
 
 local KRV_UI = {}
-KRV_UI.__index = KRV_UI
-KRV_UI.Version = "1.0"
+KRV_UI.Version = "2.0"
 KRV_UI._destroyed = false
 
--- Services (pcall : la lib ne doit JAMAIS throw au require)
-local Players, UserInputService, TweenService, HttpService, CoreGui
+local Players, UserInputService, TweenService, CoreGui
 pcall(function()
 	Players = game:GetService("Players")
 	UserInputService = game:GetService("UserInputService")
 	TweenService = game:GetService("TweenService")
-	HttpService = game:GetService("HttpService")
 	CoreGui = game:GetService("CoreGui")
 end)
-local LP = Players and Players.LocalPlayer or nil
 
--- Thème KRV (aucun chargement externe : pas de NebulaIcons, pas d'acrylic)
+-- Thème KRV
 local THEME = {
-	Bg = Color3.fromRGB(13, 15, 20),
-	Bg2 = Color3.fromRGB(18, 21, 27),
-	Box = Color3.fromRGB(22, 25, 32),
-	Line = Color3.fromRGB(34, 38, 48),
+	Bg = Color3.fromRGB(11, 13, 18),
+	Bg2 = Color3.fromRGB(16, 19, 25),
+	Box = Color3.fromRGB(21, 24, 31),
+	Line = Color3.fromRGB(33, 37, 47),
 	Text = Color3.fromRGB(240, 243, 248),
-	Sub = Color3.fromRGB(150, 160, 175),
+	Sub = Color3.fromRGB(148, 158, 173),
+	Dim = Color3.fromRGB(100, 110, 126),
 	Accent = Color3.fromRGB(0, 82, 255),
+	AccentDk = Color3.fromRGB(0, 60, 190),
 	Accent2 = Color3.fromRGB(122, 92, 255),
 	Good = Color3.fromRGB(90, 220, 120),
 	Bad = Color3.fromRGB(235, 90, 90),
 }
 local FONT_B = Enum.Font.GothamBold
+local FONT_M = Enum.Font.GothamMedium
 local FONT_R = Enum.Font.Gotham
 
--- Toutes les connexions / instances : Destroy() coupe TOUT proprement.
+-- Registres (Destroy coupe tout)
 local AllConns, AllGuis = {}, {}
 local function trackConn(c)
 	if c then AllConns[#AllConns + 1] = c end
@@ -76,9 +76,7 @@ end
 local function mk(class, props, parent)
 	local o = Instance.new(class)
 	for k, v in pairs(props or {}) do
-		if k ~= "Parent" then
-			pcall(function() o[k] = v end)
-		end
+		if k ~= "Parent" then pcall(function() o[k] = v end) end
 	end
 	o.Parent = parent
 	return o
@@ -87,99 +85,122 @@ local function corner(p, r)
 	mk("UICorner", { CornerRadius = UDim.new(0, r or 6) }, p)
 end
 local function stroke(p, color, thick, transp)
-	mk("UIStroke", { Color = color or THEME.Line, Thickness = thick or 1, Transparency = transp or 0.2 }, p)
+	mk("UIStroke", { Color = color or THEME.Line, Thickness = thick or 1, Transparency = transp or 0.15 }, p)
+end
+local function pad(p, t, l, r, b)
+	mk("UIPadding", {
+		PaddingTop = UDim.new(0, t or 0), PaddingLeft = UDim.new(0, l or 0),
+		PaddingRight = UDim.new(0, r or 0), PaddingBottom = UDim.new(0, b or 0),
+	}, p)
+end
+local function vlist(p, gap)
+	mk("UIListLayout", { Padding = UDim.new(0, gap or 5), SortOrder = Enum.SortOrder.LayoutOrder }, p)
 end
 
--- Icônes : AUCUN HttpGet (c'était LA source de lag de Starlight + NebulaIcons).
--- On mappe les noms Lucide vers des glyphes unicode, le hub marche sans réseau.
+-- Glyphes locaux (aucun HttpGet d'icônes : c'était une source de lag)
 local GLYPHS = {
 	move = "✥", sword = "⚔", swords = "⚔", eye = "👁", globe = "🌐",
 	smile = "☺", user = "👤", users = "👥", wrench = "🔧", server = "🖥",
 	settings = "⚙", cog = "⚙", zap = "⚡", shield = "🛡", star = "★",
-	target = "🎯", crosshair = "🎯", palette = "🎨", sun = "☀", moon = "🌙",
-	box = "📦", trash = "🗑", ghost = "👻", flame = "🔥", skull = "💀",
+	target = "🎯", palette = "🎨", sun = "☀", moon = "🌙", box = "📦",
+	trash = "🗑", ghost = "👻", flame = "🔥", skull = "💀", home = "⌂",
 }
-local function glyphFor(lucideName, fallbackIcon)
-	if type(fallbackIcon) == "number" then return "" end -- ancien asset id : ignoré (offline)
-	if type(fallbackIcon) == "string" and #fallbackIcon <= 4 and fallbackIcon ~= "" then
-		return fallbackIcon -- déjà un glyphe passé par le hub
-	end
-	if type(lucideName) == "string" then
-		local g = GLYPHS[string.lower(lucideName)]
+local function glyphFor(icon)
+	if type(icon) == "string" and icon ~= "" then
+		local g = GLYPHS[string.lower(icon)]
 		if g then return g end
+		if #icon <= 4 then return icon end -- déjà un glyphe
 	end
 	return "•"
 end
 
 --═══════════════════════════════════════════════════════════════════════════════
---  BOOT SCREEN (rapide, aucun tween en boucle, détruit après usage)
+--  BOOT + LICENCE (écrans temporaires, détruits après usage)
 --═══════════════════════════════════════════════════════════════════════════════
 local function showBoot(title, subtitle)
-	local g = mk("ScreenGui", { Name = "KRV_Boot", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 99999 }, parentGui())
+	local g = mk("ScreenGui", { Name = "KRV_Boot", ResetOnSpawn = false,
+		IgnoreGuiInset = true, DisplayOrder = 99999 }, parentGui())
 	trackGui(g)
-	pcall(function()
-		local f = gethui and gethui() -- protect_gui si dispo
-	end)
-	local bg = mk("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
-		Size = UDim2.new(0, 340, 0, 150), BackgroundColor3 = THEME.Bg, BorderSizePixel = 0 }, g)
-	corner(bg, 10); stroke(bg, THEME.Accent, 1, 0.3)
-	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 18),
-		Size = UDim2.new(1, 0, 0, 30), Font = FONT_B, TextSize = 20, TextColor3 = THEME.Text,
-		Text = tostring(title or "KRV Universelle") }, bg)
-	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 48),
-		Size = UDim2.new(1, 0, 0, 18), Font = FONT_R, TextSize = 12, TextColor3 = THEME.Sub,
-		Text = tostring(subtitle or "Chargement...") }, bg)
-	local barBg = mk("Frame", { Position = UDim2.new(0, 24, 0, 84), Size = UDim2.new(1, -48, 0, 8),
-		BackgroundColor3 = THEME.Box, BorderSizePixel = 0 }, bg)
+	local bg = mk("Frame", { AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 360, 0, 170),
+		BackgroundColor3 = THEME.Bg, BorderSizePixel = 0 }, g)
+	corner(bg, 12); stroke(bg, THEME.Accent, 1, 0.25)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 22),
+		Size = UDim2.new(1, 0, 0, 30), Font = FONT_B, TextSize = 22,
+		TextColor3 = THEME.Text, Text = "⚡ " .. tostring(title or "KRV Universelle") }, bg)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 52),
+		Size = UDim2.new(1, 0, 0, 18), Font = FONT_R, TextSize = 12,
+		TextColor3 = THEME.Sub, Text = tostring(subtitle or "Chargement...") }, bg)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 70),
+		Size = UDim2.new(1, 0, 0, 14), Font = FONT_R, TextSize = 10,
+		TextColor3 = THEME.Dim, Text = "KRV Interface Suite v" .. tostring(KRV_UI.Version) }, bg)
+	local barBg = mk("Frame", { Position = UDim2.new(0, 26, 0, 100),
+		Size = UDim2.new(1, -52, 0, 8), BackgroundColor3 = THEME.Box, BorderSizePixel = 0 }, bg)
 	corner(barBg, 4)
-	local bar = mk("Frame", { Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = THEME.Accent, BorderSizePixel = 0 }, barBg)
-	corner(bar, 4)
-	local pct = mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 100),
-		Size = UDim2.new(1, 0, 0, 16), Font = FONT_R, TextSize = 11, TextColor3 = THEME.Sub, Text = "0%" }, bg)
+	local grad = mk("UIGradient", { Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, THEME.Accent),
+		ColorSequenceKeypoint.new(1, THEME.Accent2),
+	}) }, barBg)
+	_ = grad
+	local bar = mk("Frame", { Size = UDim2.new(0, 0, 1, 0),
+		BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1,
+		BorderSizePixel = 0 }, barBg)
+	_ = bar
+	local fill = mk("Frame", { Size = UDim2.new(0, 0, 1, 0),
+		BackgroundColor3 = THEME.Accent, BorderSizePixel = 0 }, barBg)
+	corner(fill, 4)
+	local pct = mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 114),
+		Size = UDim2.new(1, 0, 0, 16), Font = FONT_R, TextSize = 11,
+		TextColor3 = THEME.Sub, Text = "0%" }, bg)
+	local step = mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 132),
+		Size = UDim2.new(1, 0, 0, 14), Font = FONT_R, TextSize = 10,
+		TextColor3 = THEME.Dim, Text = "" }, bg)
 	return {
 		set = function(p, label)
 			if KRV_UI._destroyed then return end
 			pcall(function()
-				bar.Size = UDim2.new(math.clamp(p or 0, 0, 1), 0, 1, 0)
-				pct.Text = tostring(label or (math.floor((p or 0) * 100) .. "%"))
+				fill.Size = UDim2.new(math.clamp(p or 0, 0, 1), 0, 1, 0)
+				pct.Text = math.floor((p or 0) * 100) .. "%"
+				if label then step.Text = tostring(label) end
 			end)
 		end,
-		close = function()
-			pcall(function() g:Destroy() end)
-		end,
+		close = function() pcall(function() g:Destroy() end) end,
 	}
 end
 
---═══════════════════════════════════════════════════════════════════════════════
---  LICENSE SCREEN (100% locale : aucune requête réseau, aucun HWID envoyé)
---═══════════════════════════════════════════════════════════════════════════════
 local function showLicense(cfg, done)
-	-- Pas de clé configurée → on skippe (aucun blocage fantôme)
 	if not cfg or not cfg.LicenseKey or cfg.LicenseKey == "" then
 		task.spawn(done)
 		return
 	end
-	local g = mk("ScreenGui", { Name = "KRV_License", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100000 }, parentGui())
+	local g = mk("ScreenGui", { Name = "KRV_License", ResetOnSpawn = false,
+		IgnoreGuiInset = true, DisplayOrder = 100000 }, parentGui())
 	trackGui(g)
-	local bg = mk("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
-		Size = UDim2.new(0, 340, 0, 210), BackgroundColor3 = THEME.Bg, BorderSizePixel = 0 }, g)
-	corner(bg, 10); stroke(bg, THEME.Accent, 1, 0.3)
-	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 16),
-		Size = UDim2.new(1, 0, 0, 26), Font = FONT_B, TextSize = 17, TextColor3 = THEME.Text, Text = "🔑 Licence KRV" }, bg)
-	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 20, 0, 46),
-		Size = UDim2.new(1, -40, 0, 30), Font = FONT_R, TextSize = 12, TextColor3 = THEME.Sub,
-		TextWrapped = true, Text = "Entre ta clé de licence pour continuer." }, bg)
-	local box = mk("TextBox", { Position = UDim2.new(0, 20, 0, 84), Size = UDim2.new(1, -40, 0, 34),
-		BackgroundColor3 = THEME.Box, TextColor3 = THEME.Text, PlaceholderColor3 = THEME.Sub,
-		PlaceholderText = "XXXX-XXXX-XXXX", Font = FONT_R, TextSize = 14, Text = "",
-		BorderSizePixel = 0, ClearTextOnFocus = false }, bg)
-	corner(box, 6)
-	local err = mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 20, 0, 122),
-		Size = UDim2.new(1, -40, 0, 16), Font = FONT_R, TextSize = 11, TextColor3 = THEME.Bad, Text = "" }, bg)
-	local btn = mk("TextButton", { Position = UDim2.new(0, 20, 0, 144), Size = UDim2.new(1, -40, 0, 38),
-		BackgroundColor3 = THEME.Accent, TextColor3 = Color3.new(1, 1, 1), Font = FONT_B, TextSize = 14,
-		Text = "Valider", BorderSizePixel = 0, AutoButtonColor = true }, bg)
-	corner(btn, 6)
+	local bg = mk("Frame", { AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 350, 0, 220),
+		BackgroundColor3 = THEME.Bg, BorderSizePixel = 0 }, g)
+	corner(bg, 12); stroke(bg, THEME.Accent, 1, 0.25)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 18),
+		Size = UDim2.new(1, 0, 0, 26), Font = FONT_B, TextSize = 18,
+		TextColor3 = THEME.Text, Text = "🔑 Licence KRV" }, bg)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 24, 0, 48),
+		Size = UDim2.new(1, -48, 0, 30), Font = FONT_R, TextSize = 12,
+		TextColor3 = THEME.Sub, TextWrapped = true,
+		Text = "Entre ta clé de licence pour continuer." }, bg)
+	local box = mk("TextBox", { Position = UDim2.new(0, 24, 0, 86),
+		Size = UDim2.new(1, -48, 0, 34), BackgroundColor3 = THEME.Box,
+		TextColor3 = THEME.Text, PlaceholderColor3 = THEME.Dim,
+		PlaceholderText = "XXXX-XXXX-XXXX", Font = FONT_M, TextSize = 14,
+		Text = "", BorderSizePixel = 0, ClearTextOnFocus = false }, bg)
+	corner(box, 7); stroke(box, THEME.Line, 1, 0.2)
+	local err = mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 24, 0, 124),
+		Size = UDim2.new(1, -48, 0, 16), Font = FONT_R, TextSize = 11,
+		TextColor3 = THEME.Bad, Text = "" }, bg)
+	local btn = mk("TextButton", { Position = UDim2.new(0, 24, 0, 146),
+		Size = UDim2.new(1, -48, 0, 40), BackgroundColor3 = THEME.Accent,
+		TextColor3 = Color3.new(1, 1, 1), Font = FONT_B, TextSize = 14,
+		Text = "Valider", BorderSizePixel = 0 }, bg)
+	corner(btn, 7)
 	trackConn(btn.MouseButton1Click:Connect(function()
 		if box.Text == cfg.LicenseKey then
 			pcall(function() g:Destroy() end)
@@ -191,7 +212,7 @@ local function showLicense(cfg, done)
 end
 
 --═══════════════════════════════════════════════════════════════════════════════
---  NOTIFICATIONS (pool fixe de 4 : pas de fuite, 1 seul tween par toast)
+--  NOTIFICATIONS (pool de 4, 1 seul tween par toast)
 --═══════════════════════════════════════════════════════════════════════════════
 local notifGui, notifStack
 local function ensureNotifGui()
@@ -199,22 +220,18 @@ local function ensureNotifGui()
 	notifGui = mk("ScreenGui", { Name = "KRV_Notifications", ResetOnSpawn = false,
 		IgnoreGuiInset = true, DisplayOrder = 99998 }, parentGui())
 	trackGui(notifGui)
-	notifStack = mk("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 14),
-		Size = UDim2.new(0, 300, 1, -28), BackgroundTransparency = 1 }, notifGui)
-	local layout = mk("UIListLayout", { Padding = UDim.new(0, 8), FillDirection = Enum.FillDirection.Vertical,
-		HorizontalAlignment = Enum.HorizontalAlignment.Right, SortOrder = Enum.SortOrder.LayoutOrder }, notifStack)
-	_ = layout
+	notifStack = mk("Frame", { AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 14), Size = UDim2.new(0, 300, 1, -28),
+		BackgroundTransparency = 1 }, notifGui)
+	vlist(notifStack, 8)
 end
 
 function KRV_UI:Notification(opts)
 	if self._destroyed then return end
 	opts = opts or {}
 	ensureNotifGui()
-	-- Pool : max 4 toasts, le plus vieux est recyclé (pas de fuite mémoire)
-	local kids = notifStack:GetChildren()
-	local oldest, oldestOrder = nil, math.huge
-	local count = 0
-	for _, k in ipairs(kids) do
+	local count, oldest, oldestOrder = 0, nil, math.huge
+	for _, k in ipairs(notifStack:GetChildren()) do
 		if k:IsA("Frame") then
 			count = count + 1
 			local lo = k:GetAttribute("Order") or 0
@@ -222,18 +239,20 @@ function KRV_UI:Notification(opts)
 		end
 	end
 	if count >= 4 and oldest then pcall(function() oldest:Destroy() end) end
-	local f = mk("Frame", { Size = UDim2.new(0, 300, 0, 64), BackgroundColor3 = THEME.Bg2,
-		BorderSizePixel = 0 }, notifStack)
+	local f = mk("Frame", { Size = UDim2.new(0, 300, 0, 66),
+		BackgroundColor3 = THEME.Bg2, BorderSizePixel = 0 }, notifStack)
 	f:SetAttribute("Order", os.clock())
-	corner(f, 8); stroke(f, THEME.Accent, 1, 0.4)
-	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 12, 0, 6),
-		Size = UDim2.new(1, -24, 0, 18), Font = FONT_B, TextSize = 13,
-		TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = THEME.Accent,
-		Text = tostring(opts.Title or "KRV") }, f)
-	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 12, 0, 24),
-		Size = UDim2.new(1, -24, 1, -30), Font = FONT_R, TextSize = 12,
+	corner(f, 8); stroke(f, THEME.Accent, 1, 0.35)
+	mk("Frame", { Position = UDim2.new(0, 8, 0, 10), Size = UDim2.new(0, 3, 1, -20),
+		BackgroundColor3 = THEME.Accent, BorderSizePixel = 0 }, f)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 18, 0, 6),
+		Size = UDim2.new(1, -30, 0, 18), Font = FONT_B, TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = THEME.Text,
+		TextTruncate = Enum.TextTruncate.AtEnd, Text = tostring(opts.Title or "KRV") }, f)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 18, 0, 24),
+		Size = UDim2.new(1, -30, 1, -30), Font = FONT_R, TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
-		TextWrapped = true, TextColor3 = THEME.Text, Text = tostring(opts.Content or "") }, f)
+		TextWrapped = true, TextColor3 = THEME.Sub, Text = tostring(opts.Content or "") }, f)
 	task.delay(tonumber(opts.Duration) or 4, function()
 		if KRV_UI._destroyed then return end
 		pcall(function()
@@ -249,7 +268,49 @@ function KRV_UI:Notification(opts)
 end
 
 --═══════════════════════════════════════════════════════════════════════════════
---  FENÊTRE / ONGLETS / GROUPBOXES
+--  OVERLAY (listes dropdown + palettes : pas de clipping par le scroll)
+--═══════════════════════════════════════════════════════════════════════════════
+local overlayGui
+local function ensureOverlay()
+	if overlayGui and overlayGui.Parent then return overlayGui end
+	overlayGui = mk("ScreenGui", { Name = "KRV_Overlay", ResetOnSpawn = false,
+		IgnoreGuiInset = true, DisplayOrder = 99995 }, parentGui())
+	trackGui(overlayGui)
+	return overlayGui
+end
+-- Ouvre un panneau flottant ancré sous `anchorBtn`. Retourne close().
+local function openFloat(anchorBtn, w, h, build)
+	ensureOverlay()
+	for _, k in ipairs(overlayGui:GetChildren()) do pcall(function() k:Destroy() end) end
+	local layer = mk("Frame", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1 }, overlayGui)
+	local closed = false
+	local function close()
+		if closed then return end
+		closed = true
+		pcall(function() layer:Destroy() end)
+	end
+	local catcher = mk("TextButton", { Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1, Text = "" }, layer)
+	trackConn(catcher.MouseButton1Click:Connect(close))
+	local ax, ay = 0, 0
+	pcall(function()
+		local p = anchorBtn.AbsolutePosition
+		ax, ay = p.X, p.Y + anchorBtn.AbsoluteSize.Y + 4
+	end)
+	local vp = Vector2.new(800, 600)
+	pcall(function() vp = (parentGui() and workspace.CurrentCamera.ViewportSize) or vp end)
+	if ax + w > vp.X - 10 then ax = math.max(10, vp.X - w - 10) end
+	if ay + h > vp.Y - 10 then ay = math.max(10, ay - h - anchorBtn.AbsoluteSize.Y - 8) end
+	local panel = mk("Frame", { Position = UDim2.fromOffset(ax, ay),
+		Size = UDim2.fromOffset(w, h), BackgroundColor3 = THEME.Bg2,
+		BorderSizePixel = 0, ZIndex = 10 }, layer)
+	corner(panel, 7); stroke(panel, THEME.Line, 1, 0.1)
+	build(panel, close)
+	return close
+end
+
+--═══════════════════════════════════════════════════════════════════════════════
+--  FENÊTRE
 --═══════════════════════════════════════════════════════════════════════════════
 local menuKey = Enum.KeyCode.RightShift
 
@@ -257,39 +318,49 @@ function KRV_UI:CreateWindow(opts)
 	opts = opts or {}
 	local boot = showBoot(opts.Name or "KRV Universelle",
 		(opts.LoadingSettings and opts.LoadingSettings.Subtitle) or "Chargement des modules...")
-	boot.set(0.15, "Interface...")
+	boot.set(0.12, "Fenêtre...")
 
 	local gui = mk("ScreenGui", { Name = "KRV_Interface", ResetOnSpawn = false,
 		IgnoreGuiInset = true, DisplayOrder = 99990 }, parentGui())
 	trackGui(gui)
 
-	local main = mk("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
-		Size = UDim2.new(0, 640, 0, 440), BackgroundColor3 = THEME.Bg, BorderSizePixel = 0,
-		Visible = false }, gui)
-	corner(main, 10); stroke(main, THEME.Line, 1, 0.1)
+	local main = mk("Frame", { AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 660, 0, 460),
+		BackgroundColor3 = THEME.Bg, BorderSizePixel = 0, Visible = false }, gui)
+	corner(main, 10); stroke(main, THEME.Line, 1, 0.05)
 
-	-- Barre de titre (drag manuel : 1 seule connexion, pas de boucle)
-	local top = mk("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundColor3 = THEME.Bg2, BorderSizePixel = 0 }, main)
+	-- Barre de titre
+	local top = mk("Frame", { Size = UDim2.new(1, 0, 0, 48),
+		BackgroundColor3 = THEME.Bg2, BorderSizePixel = 0 }, main)
 	corner(top, 10)
 	mk("Frame", { Position = UDim2.new(0, 0, 1, -10), Size = UDim2.new(1, 0, 0, 10),
 		BackgroundColor3 = THEME.Bg2, BorderSizePixel = 0 }, top)
-	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 14, 0, 4),
-		Size = UDim2.new(1, -150, 0, 20), Font = FONT_B, TextSize = 15,
+	local logo = mk("Frame", { Position = UDim2.new(0, 12, 0, 9),
+		Size = UDim2.new(0, 30, 0, 30), BackgroundColor3 = THEME.Accent, BorderSizePixel = 0 }, top)
+	corner(logo, 8)
+	mk("TextLabel", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
+		Font = FONT_B, TextSize = 16, TextColor3 = Color3.new(1, 1, 1), Text = "⚡" }, logo)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 50, 0, 5),
+		Size = UDim2.new(1, -170, 0, 20), Font = FONT_B, TextSize = 15,
 		TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = THEME.Text,
-		Text = "⚡ " .. tostring(opts.Name or "KRV Universelle") }, top)
-	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 14, 0, 23),
-		Size = UDim2.new(1, -150, 0, 14), Font = FONT_R, TextSize = 11,
+		TextTruncate = Enum.TextTruncate.AtEnd, Text = tostring(opts.Name or "KRV Universelle") }, top)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 50, 0, 24),
+		Size = UDim2.new(1, -170, 0, 14), Font = FONT_R, TextSize = 11,
 		TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = THEME.Sub,
-		Text = tostring(opts.Subtitle or ("v" .. tostring(KRV_UI.Version))) }, top)
-	local minBtn = mk("TextButton", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -48, 0, 8),
-		Size = UDim2.new(0, 28, 0, 28), BackgroundColor3 = THEME.Box, TextColor3 = THEME.Text,
-		Font = FONT_B, TextSize = 14, Text = "–", BorderSizePixel = 0 }, top)
-	corner(minBtn, 6)
-	local closeBtn = mk("TextButton", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 8),
-		Size = UDim2.new(0, 28, 0, 28), BackgroundColor3 = THEME.Box, TextColor3 = THEME.Bad,
-		Font = FONT_B, TextSize = 14, Text = "✕", BorderSizePixel = 0 }, top)
-	corner(closeBtn, 6)
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Text = tostring(opts.Subtitle or ("Interface v" .. tostring(KRV_UI.Version))) }, top)
+	local minBtn = mk("TextButton", { AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -50, 0, 10), Size = UDim2.new(0, 30, 0, 28),
+		BackgroundColor3 = THEME.Box, TextColor3 = THEME.Text, Font = FONT_B,
+		TextSize = 15, Text = "–", BorderSizePixel = 0 }, top)
+	corner(minBtn, 7)
+	local closeBtn = mk("TextButton", { AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -12, 0, 10), Size = UDim2.new(0, 30, 0, 28),
+		BackgroundColor3 = THEME.Box, TextColor3 = THEME.Bad, Font = FONT_B,
+		TextSize = 13, Text = "✕", BorderSizePixel = 0 }, top)
+	corner(closeBtn, 7)
 
+	-- Drag (3 connexions uniques, aucune boucle)
 	do
 		local dragging, dragStart, startPos = false, nil, nil
 		trackConn(top.InputBegan:Connect(function(input)
@@ -300,7 +371,8 @@ function KRV_UI:CreateWindow(opts)
 		trackConn(UserInputService.InputChanged:Connect(function(input)
 			if dragging and input.UserInputType == Enum.UserInputType.MouseMovement and dragStart then
 				local d = input.Position - dragStart
-				main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+				main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
+					startPos.Y.Scale, startPos.Y.Offset + d.Y)
 			end
 		end))
 		trackConn(UserInputService.InputEnded:Connect(function(input)
@@ -308,20 +380,44 @@ function KRV_UI:CreateWindow(opts)
 		end))
 	end
 
-	-- Corps : sidebar + pages
-	local side = mk("Frame", { Position = UDim2.new(0, 0, 0, 44), Size = UDim2.new(0, 150, 1, -44),
-		BackgroundColor3 = THEME.Bg2, BorderSizePixel = 0 }, main)
-	mk("Frame", { Position = UDim2.new(0, 0, 0, 0), Size = UDim2.new(1, 0, 0, 0),
-		BackgroundColor3 = THEME.Bg2, BorderSizePixel = 0 }, side)
-	local sideList = mk("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, side)
-	_ = sideList
-	mk("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8),
-		PaddingRight = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8) }, side)
+	-- Sidebar
+	local side = mk("Frame", { Position = UDim2.new(0, 0, 0, 48),
+		Size = UDim2.new(0, 158, 1, -70), BackgroundColor3 = THEME.Bg2, BorderSizePixel = 0 }, main)
+	mk("Frame", { Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(1, -1, 0, 0),
+		BackgroundColor3 = THEME.Line, BackgroundTransparency = 0.4, BorderSizePixel = 0 }, side)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 12, 0, 6),
+		Size = UDim2.new(1, -24, 0, 14), Font = FONT_B, TextSize = 10,
+		TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = THEME.Dim, Text = "NAVIGATION" }, side)
+	local sideList = mk("Frame", { Position = UDim2.new(0, 0, 0, 26),
+		Size = UDim2.new(1, 0, 1, -26), BackgroundTransparency = 1 }, side)
+	pad(sideList, 0, 8, 8, 8)
+	vlist(sideList, 4)
 
-	local body = mk("Frame", { Position = UDim2.new(0, 150, 0, 44), Size = UDim2.new(1, -150, 1, -44),
-		BackgroundTransparency = 1 }, main)
+	-- Corps
+	local body = mk("Frame", { Position = UDim2.new(0, 158, 0, 48),
+		Size = UDim2.new(1, -158, 1, -70), BackgroundTransparency = 1 }, main)
 
-	local win = { _gui = gui, _main = main, _tabs = {}, _onDestroy = nil, _configFolder = nil }
+	-- Barre de statut
+	local status = mk("Frame", { Position = UDim2.new(0, 0, 1, -22),
+		Size = UDim2.new(1, 0, 0, 22), BackgroundColor3 = THEME.Bg2, BorderSizePixel = 0 }, main)
+	corner(status, 10)
+	mk("Frame", { Size = UDim2.new(1, 0, 0, 12), BackgroundColor3 = THEME.Bg2,
+		BorderSizePixel = 0 }, status)
+	local statusDot = mk("Frame", { Position = UDim2.new(0, 12, 0.5, -3),
+		Size = UDim2.new(0, 6, 0, 6), BackgroundColor3 = THEME.Good, BorderSizePixel = 0 }, status)
+	corner(statusDot, 3)
+	local statusLbl = mk("TextLabel", { BackgroundTransparency = 1,
+		Position = UDim2.new(0, 24, 0, 0), Size = UDim2.new(1, -100, 1, 0),
+		Font = FONT_R, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = THEME.Sub, TextTruncate = Enum.TextTruncate.AtEnd,
+		Text = "KRV Interface Suite v" .. tostring(KRV_UI.Version) .. " — prêt" }, status)
+	local fpsLbl = mk("TextLabel", { BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 0),
+		Size = UDim2.new(0, 76, 1, 0), Font = FONT_R, TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = THEME.Dim, Text = "" }, status)
+
+	local win = { _gui = gui, _main = main, _tabs = {}, _onDestroy = nil,
+		_status = statusLbl, _configFolder = nil }
 	if opts.FileSettings and opts.FileSettings.ConfigFolder then
 		win._configFolder = tostring(opts.FileSettings.ConfigFolder)
 		pcall(function()
@@ -329,6 +425,9 @@ function KRV_UI:CreateWindow(opts)
 				makefolder(win._configFolder)
 			end
 		end)
+	end
+	function win:SetStatus(t)
+		pcall(function() statusLbl.Text = tostring(t) end)
 	end
 
 	trackConn(minBtn.MouseButton1Click:Connect(function()
@@ -341,93 +440,128 @@ function KRV_UI:CreateWindow(opts)
 	end))
 	trackConn(UserInputService.InputBegan:Connect(function(input, gp)
 		if gp or KRV_UI._destroyed then return end
-		if input.KeyCode == menuKey then
-			main.Visible = not main.Visible
-		end
+		if input.KeyCode == menuKey then main.Visible = not main.Visible end
 	end))
 
 	function win:CreateTabSection(_name)
 		local section = {}
-		function section:CreateTab(tabOpts, _idx)
+		function section:CreateTab(tabOpts)
 			tabOpts = tabOpts or {}
+			-- Page : ScrollingFrame + 2 colonnes manuelles (PAS de UIListLayout
+			-- sur la page : il écraserait le positionnement des colonnes).
+			-- CanvasSize de repli (800) si AutomaticCanvasSize non supporté.
 			local page = mk("ScrollingFrame", { Size = UDim2.new(1, 0, 1, 0),
 				BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false,
-				ScrollBarThickness = 3, ScrollBarImageColor3 = THEME.Line,
-				AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0) }, body)
-			mk("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8),
-				PaddingRight = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8) }, page)
-			local btn = mk("TextButton", { Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = THEME.Box,
-				TextColor3 = THEME.Sub, Font = FONT_B, TextSize = 12,
-				TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0,
-				Text = "  " .. glyphFor(tabOpts.Icon, nil) .. "  " .. tostring(tabOpts.Name or "Onglet") }, side)
-			corner(btn, 6)
-			local tab = { _page = page, _btn = btn, _cols = {} }
+				ScrollBarThickness = 4, ScrollBarImageColor3 = THEME.Line,
+				CanvasSize = UDim2.new(0, 0, 0, 800),
+				AutomaticCanvasSize = Enum.AutomaticSize.Y }, body)
+			local cols = {}
 			for c = 1, 2 do
-				local col = mk("Frame", { Size = UDim2.new(0.5, -4, 0, 0),
+				local col = mk("Frame", { Size = UDim2.new(0.5, -12, 0, 10),
 					BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y }, page)
-				if c == 1 then col.Position = UDim2.new(0, 0, 0, 0)
-				else col.Position = UDim2.new(0.5, 4, 0, 0) end
-				mk("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, col)
-				tab._cols[c] = col
+				if c == 1 then col.Position = UDim2.new(0, 8, 0, 8)
+				else col.Position = UDim2.new(0.5, 4, 0, 8) end
+				vlist(col, 8)
+				cols[c] = col
 			end
+			local btn = mk("TextButton", { Size = UDim2.new(1, 0, 0, 34),
+				BackgroundColor3 = THEME.Box, TextColor3 = THEME.Sub, Font = FONT_M,
+				TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0,
+				Text = "   " .. glyphFor(tabOpts.Icon) .. "   " .. tostring(tabOpts.Name or "Onglet"),
+				TextTruncate = Enum.TextTruncate.AtEnd }, sideList)
+			corner(btn, 7)
+			local sel = mk("Frame", { Position = UDim2.new(0, 0, 0, 7),
+				Size = UDim2.new(0, 3, 0, 20), BackgroundColor3 = THEME.Accent,
+				BorderSizePixel = 0, Visible = false }, btn)
+			corner(sel, 2)
+			local tab = { _page = page, _btn = btn, _sel = sel, _cols = cols }
 			trackConn(btn.MouseButton1Click:Connect(function()
 				if KRV_UI._destroyed then return end
 				for _, t in ipairs(win._tabs) do
 					t._page.Visible = false
 					t._btn.BackgroundColor3 = THEME.Box
 					t._btn.TextColor3 = THEME.Sub
+					t._sel.Visible = false
 				end
 				page.Visible = true
 				btn.BackgroundColor3 = THEME.Accent
 				btn.TextColor3 = Color3.new(1, 1, 1)
+				sel.Visible = true
+			end))
+			trackConn(btn.MouseEnter:Connect(function()
+				if not page.Visible then btn.BackgroundColor3 = THEME.Line end
+			end))
+			trackConn(btn.MouseLeave:Connect(function()
+				if not page.Visible then btn.BackgroundColor3 = THEME.Box end
 			end))
 			win._tabs[#win._tabs + 1] = tab
 			if #win._tabs == 1 then
 				page.Visible = true
 				btn.BackgroundColor3 = THEME.Accent
 				btn.TextColor3 = Color3.new(1, 1, 1)
+				sel.Visible = true
 			end
 
-			function tab:BuildConfigGroupbox(_col)
-				local sec = tab:CreateGroupbox({ Name = "Configs", Column = 1 }, "cfg")
-				return KRV_UI._ConfigBox(sec)
-			end
-			function tab:CreateGroupbox(gbOpts, _gbIdx)
+			function tab:CreateGroupbox(gbOpts)
 				gbOpts = gbOpts or {}
 				local col = tab._cols[(gbOpts.Column == 2) and 2 or 1]
+				-- Groupbox : layout vertical unique (titre + lignes). Aucun
+				-- enfant à position absolue : l'AutomaticSize est fiable.
 				local gb = mk("Frame", { Size = UDim2.new(1, 0, 0, 0),
 					BackgroundColor3 = THEME.Box, BorderSizePixel = 0,
 					AutomaticSize = Enum.AutomaticSize.Y }, col)
-				corner(gb, 8); stroke(gb, THEME.Line, 1, 0.3)
-				mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 10, 0, 6),
-					Size = UDim2.new(1, -20, 0, 18), Font = FONT_B, TextSize = 13,
-					TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = THEME.Text,
-					Text = tostring(gbOpts.Name or "Section") }, gb)
-				local list = mk("Frame", { Position = UDim2.new(0, 0, 0, 28), Size = UDim2.new(1, 0, 0, 0),
-					BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y }, gb)
-				mk("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
-				mk("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8),
-					PaddingBottom = UDim.new(0, 8) }, list)
-
-				local sec = { _frame = gb, _list = list, _win = win }
+				corner(gb, 8); stroke(gb, THEME.Line, 1, 0.35)
+				vlist(gb, 4)
+				pad(gb, 8, 10, 10, 8)
+				local titleRow = mk("Frame", { Size = UDim2.new(1, 0, 0, 20),
+					BackgroundTransparency = 1 }, gb)
+				mk("Frame", { Position = UDim2.new(0, 0, 0, 3),
+					Size = UDim2.new(0, 3, 0, 14), BackgroundColor3 = THEME.Accent,
+					BorderSizePixel = 0 }, titleRow)
+				mk("TextLabel", { BackgroundTransparency = 1,
+					Position = UDim2.new(0, 11, 0, 0), Size = UDim2.new(1, -11, 1, 0),
+					Font = FONT_B, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left,
+					TextColor3 = THEME.Text, TextTruncate = Enum.TextTruncate.AtEnd,
+					Text = tostring(gbOpts.Name or "Section") }, titleRow)
+				local sec = { _box = gb, _win = win }
 				sec.CreateToggle = function(s, o, i) return KRV_UI._Toggle(s, o, i) end
 				sec.CreateSlider = function(s, o, i) return KRV_UI._Slider(s, o, i) end
 				sec.CreateButton = function(s, o, i) return KRV_UI._Button(s, o, i) end
 				sec.CreateInput = function(s, o, i) return KRV_UI._Input(s, o, i) end
 				sec.CreateLabel = function(s, o, i) return KRV_UI._Label(s, o, i) end
-				sec.BuildConfigGroupbox = function(s, _col) return KRV_UI._ConfigBox(s) end
+				sec.BuildConfigGroupbox = function(s) return KRV_UI._ConfigBox(s) end
 				return sec
+			end
+			function tab:BuildConfigGroupbox()
+				local sec = tab:CreateGroupbox({ Name = "Configurations", Column = 1 })
+				return KRV_UI._ConfigBox(sec)
 			end
 			return tab
 		end
 		return section
 	end
 
-	boot.set(0.6, "Onglets...")
+	-- Compteur FPS discret (1 écriture/seconde, zéro impact)
+	task.spawn(function()
+		local n, t0 = 0, os.clock()
+		while not KRV_UI._destroyed and main.Parent do
+			task.wait(0.2)
+			n = n + 1
+			local dt = os.clock() - t0
+			if dt >= 1 then
+				pcall(function()
+					fpsLbl.Text = tostring(math.floor(n / dt + 0.5)) .. " FPS"
+				end)
+				n, t0 = 0, os.clock()
+			end
+		end
+	end)
+
+	boot.set(0.55, "Prêt...")
 	showLicense(opts, function()
 		if KRV_UI._destroyed then return end
 		boot.set(1, "Prêt !")
-		task.delay(0.25, function()
+		task.delay(0.2, function()
 			boot.close()
 			main.Visible = true
 		end)
@@ -436,33 +570,39 @@ function KRV_UI:CreateWindow(opts)
 end
 
 --═══════════════════════════════════════════════════════════════════════════════
---  CONTRÔLES (chaque callback est pcall + guard destroyed ; Set() refire)
+--  CONTRÔLES
 --═══════════════════════════════════════════════════════════════════════════════
-local function baseRow(sec, h)
-	local r = mk("Frame", { Size = UDim2.new(1, 0, 0, h or 30), BackgroundTransparency = 1 }, sec._list)
-	return r
+local function hover(btn, normal, over)
+	trackConn(btn.MouseEnter:Connect(function()
+		pcall(function() btn.BackgroundColor3 = over end)
+	end))
+	trackConn(btn.MouseLeave:Connect(function()
+		pcall(function() btn.BackgroundColor3 = normal end)
+	end))
 end
 
-function KRV_UI._Toggle(sec, opts, _idx)
+function KRV_UI._Toggle(sec, opts)
 	opts = opts or {}
 	local val = (opts.CurrentValue == true)
-	local row = baseRow(sec, 30)
-	local lbl = mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 4, 0, 0),
-		Size = UDim2.new(1, -52, 1, 0), Font = FONT_R, TextSize = 12,
-		TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = THEME.Text,
-		TextWrapped = true, Text = tostring(opts.Name or "Toggle") }, row)
-	_ = lbl
-	local sw = mk("TextButton", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -2, 0.5, 0),
-		Size = UDim2.new(0, 40, 0, 20), BackgroundColor3 = THEME.Line, Text = "",
-		BorderSizePixel = 0, AutoButtonColor = false }, row)
-	corner(sw, 10)
-	local knob = mk("Frame", { Position = UDim2.new(0, 2, 0.5, -8), Size = UDim2.new(0, 16, 0, 16),
-		BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, sw)
-	corner(knob, 8)
-	local el = { _cb = opts.Callback, _val = val }
+	local row = mk("Frame", { Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1 }, sec._box)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 2, 0, 0),
+		Size = UDim2.new(1, -50, 1, 0), Font = FONT_R, TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center,
+		TextColor3 = THEME.Text, TextTruncate = Enum.TextTruncate.AtEnd,
+		Text = tostring(opts.Name or "Toggle") }, row)
+	local sw = mk("TextButton", { AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -2, 0.5, 0), Size = UDim2.new(0, 38, 0, 18),
+		BackgroundColor3 = THEME.Line, Text = "", BorderSizePixel = 0,
+		AutoButtonColor = false }, row)
+	corner(sw, 9)
+	local knob = mk("Frame", { Position = UDim2.new(0, 2, 0.5, -7),
+		Size = UDim2.new(0, 14, 0, 14), BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0 }, sw)
+	corner(knob, 7)
+	local el = { _cb = opts.Callback, _val = val, _nx = 46 }
 	local function paint()
 		sw.BackgroundColor3 = el._val and THEME.Accent or THEME.Line
-		knob.Position = el._val and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+		knob.Position = el._val and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
 	end
 	paint()
 	function el:Set(o)
@@ -479,32 +619,35 @@ function KRV_UI._Toggle(sec, opts, _idx)
 	return el
 end
 
-function KRV_UI._Slider(sec, opts, _idx)
+function KRV_UI._Slider(sec, opts)
 	opts = opts or {}
 	local min = tonumber(opts.Range and opts.Range[1]) or 0
 	local max = tonumber(opts.Range and opts.Range[2]) or 100
 	if max < min then min, max = max, min end
 	local val = math.clamp(tonumber(opts.CurrentValue) or min, min, max)
-	local row = baseRow(sec, 44)
-	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 4, 0, 0),
-		Size = UDim2.new(1, -60, 0, 16), Font = FONT_R, TextSize = 12,
+	local row = mk("Frame", { Size = UDim2.new(1, 0, 0, 48), BackgroundTransparency = 1 }, sec._box)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 2, 0, 0),
+		Size = UDim2.new(1, -60, 0, 18), Font = FONT_R, TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = THEME.Text,
-		Text = tostring(opts.Name or "Slider") }, row)
-	local valLbl = mk("TextLabel", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -4, 0, 0), Size = UDim2.new(0, 56, 0, 16), Font = FONT_B,
-		TextSize = 12, TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = THEME.Accent,
+		TextTruncate = Enum.TextTruncate.AtEnd, Text = tostring(opts.Name or "Slider") }, row)
+	local valLbl = mk("TextLabel", { BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -2, 0, 0),
+		Size = UDim2.new(0, 56, 0, 18), Font = FONT_B, TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = THEME.Accent,
 		Text = tostring(val) }, row)
-	local bar = mk("TextButton", { Position = UDim2.new(0, 4, 0, 22), Size = UDim2.new(1, -8, 0, 14),
-		BackgroundColor3 = THEME.Line, Text = "", BorderSizePixel = 0, AutoButtonColor = false }, row)
-	corner(bar, 7)
-	local fill = mk("Frame", { Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = THEME.Accent,
-		BorderSizePixel = 0 }, bar)
-	corner(fill, 7)
-	local el = { _cb = opts.Callback, _val = val }
+	local bar = mk("TextButton", { Position = UDim2.new(0, 2, 0, 24),
+		Size = UDim2.new(1, -4, 0, 16), BackgroundColor3 = THEME.Line, Text = "",
+		BorderSizePixel = 0, AutoButtonColor = false }, row)
+	corner(bar, 8)
+	local fill = mk("Frame", { Size = UDim2.new(0, 0, 1, 0),
+		BackgroundColor3 = THEME.Accent, BorderSizePixel = 0 }, bar)
+	corner(fill, 8)
+	local el = { _cb = opts.Callback, _val = val, _nx = 2 }
 	local function paint()
 		local f = (max > min) and ((el._val - min) / (max - min)) or 0
 		fill.Size = UDim2.new(math.clamp(f, 0, 1), 0, 1, 0)
-		valLbl.Text = tostring(math.floor(el._val * 100) / 100)
+		local r = math.floor(el._val * 100) / 100
+		valLbl.Text = (r == math.floor(r)) and tostring(math.floor(r)) or tostring(r)
 	end
 	paint()
 	function el:Set(o)
@@ -535,30 +678,36 @@ function KRV_UI._Slider(sec, opts, _idx)
 	return el
 end
 
-function KRV_UI._Button(sec, opts, _idx)
+function KRV_UI._Button(sec, opts)
 	opts = opts or {}
-	local b = mk("TextButton", { Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = THEME.Accent,
-		TextColor3 = Color3.new(1, 1, 1), Font = FONT_B, TextSize = 12,
-		Text = tostring(opts.Name or "Bouton"), BorderSizePixel = 0 }, sec._list)
-	corner(b, 6)
+	local b = mk("TextButton", { Size = UDim2.new(1, 0, 0, 30),
+		BackgroundColor3 = THEME.Box, TextColor3 = THEME.Text, Font = FONT_M,
+		TextSize = 12, TextTruncate = Enum.TextTruncate.AtEnd,
+		Text = tostring(opts.Name or "Bouton"), BorderSizePixel = 0 }, sec._box)
+	corner(b, 7); stroke(b, THEME.Line, 1, 0.25)
+	hover(b, THEME.Box, THEME.Accent)
+	trackConn(b.MouseEnter:Connect(function() pcall(function() b.TextColor3 = Color3.new(1, 1, 1) end) end))
+	trackConn(b.MouseLeave:Connect(function() pcall(function() b.TextColor3 = THEME.Text end) end))
 	local el = { _cb = opts.Callback }
 	function el:Set() end
 	trackConn(b.MouseButton1Click:Connect(function() safeCB(el._cb) end))
 	return el
 end
 
-function KRV_UI._Input(sec, opts, _idx)
+function KRV_UI._Input(sec, opts)
 	opts = opts or {}
-	local row = baseRow(sec, 52)
-	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 4, 0, 0),
-		Size = UDim2.new(1, -8, 0, 16), Font = FONT_R, TextSize = 12,
+	local row = mk("Frame", { Size = UDim2.new(1, 0, 0, 56), BackgroundTransparency = 1 }, sec._box)
+	mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 2, 0, 0),
+		Size = UDim2.new(1, -4, 0, 18), Font = FONT_R, TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = THEME.Text,
-		Text = tostring(opts.Name or "Input") }, row)
-	local box = mk("TextBox", { Position = UDim2.new(0, 4, 0, 18), Size = UDim2.new(1, -8, 0, 28),
-		BackgroundColor3 = THEME.Bg, TextColor3 = THEME.Text, PlaceholderColor3 = THEME.Sub,
-		PlaceholderText = tostring(opts.PlaceholderText or ""), Font = FONT_R, TextSize = 12,
-		Text = tostring(opts.CurrentValue or ""), BorderSizePixel = 0, ClearTextOnFocus = false }, row)
-	corner(box, 6); stroke(box, THEME.Line, 1, 0.3)
+		TextTruncate = Enum.TextTruncate.AtEnd, Text = tostring(opts.Name or "Input") }, row)
+	local box = mk("TextBox", { Position = UDim2.new(0, 0, 0, 20),
+		Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = THEME.Bg,
+		TextColor3 = THEME.Text, PlaceholderColor3 = THEME.Dim,
+		PlaceholderText = tostring(opts.PlaceholderText or ""), Font = FONT_R,
+		TextSize = 12, Text = tostring(opts.CurrentValue or ""),
+		BorderSizePixel = 0, ClearTextOnFocus = false }, row)
+	corner(box, 7); stroke(box, THEME.Line, 1, 0.2)
 	local el = { _cb = opts.Callback }
 	function el:Set(o)
 		if KRV_UI._destroyed then return end
@@ -573,14 +722,15 @@ function KRV_UI._Input(sec, opts, _idx)
 	return el
 end
 
-function KRV_UI._Label(sec, opts, _idx)
+function KRV_UI._Label(sec, opts)
 	opts = opts or {}
-	local row = baseRow(sec, 26)
-	local t = mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 4, 0, 0),
-		Size = UDim2.new(1, -8, 1, 0), Font = FONT_R, TextSize = 12,
-		TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = THEME.Sub,
-		TextWrapped = true, Text = tostring(opts.Name or "") }, row)
-	local el = {}
+	local row = mk("Frame", { Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1 }, sec._box)
+	local t = mk("TextLabel", { BackgroundTransparency = 1, Position = UDim2.new(0, 2, 0, 0),
+		Size = UDim2.new(1, -80, 1, 0), Font = FONT_R, TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center,
+		TextColor3 = THEME.Sub, TextTruncate = Enum.TextTruncate.AtEnd,
+		Text = tostring(opts.Name or "") }, row)
+	local el = { _nx = 2 }
 	function el:Set(o)
 		if KRV_UI._destroyed then return end
 		if type(o) == "table" and o.Name ~= nil then t.Text = tostring(o.Name) end
@@ -589,34 +739,43 @@ function KRV_UI._Label(sec, opts, _idx)
 	return el
 end
 
--- Éléments imbriqués (bind / dropdown / colorpicker sur un label ou toggle)
+-- Éléments imbriqués : empilés à droite sans chevaucher le switch des toggles
 function KRV_UI._AttachNested(el, row)
-	function el:AddBind(bOpts, _bIdx)
+	local function place(w)
+		el._nx = (el._nx or 2) + w + 6
+		return UDim2.new(1, -el._nx, 0.5, 0)
+	end
+	function el:AddBind(bOpts)
 		bOpts = bOpts or {}
 		local key = tostring(bOpts.CurrentValue or "E")
-		local b = mk("TextButton", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -2, 0.5, 0),
-			Size = UDim2.new(0, 64, 0, 20), BackgroundColor3 = THEME.Bg, TextColor3 = THEME.Accent,
-			Font = FONT_B, TextSize = 11, Text = "[" .. key .. "]", BorderSizePixel = 0 }, row)
+		local b = mk("TextButton", { AnchorPoint = Vector2.new(0, 0.5),
+			Position = place(64), Size = UDim2.new(0, 64, 0, 20),
+			BackgroundColor3 = THEME.Bg, TextColor3 = THEME.Accent, Font = FONT_B,
+			TextSize = 11, Text = "[" .. key .. "]", BorderSizePixel = 0 }, row)
 		corner(b, 5); stroke(b, THEME.Line, 1, 0.3)
 		local bind = { _key = key }
-		-- Touche du menu : pilote l'affichage (WindowSetting)
 		if bOpts.WindowSetting then
-			local kc = Enum.KeyCode.RightShift
 			pcall(function()
 				for _, e in ipairs(Enum.KeyCode:GetEnumItems()) do
-					if e.Name == key then kc = e; break end
+					if e.Name == key then menuKey = e; break end
 				end
 			end)
-			menuKey = kc
 		end
 		local capturing = false
 		trackConn(b.MouseButton1Click:Connect(function()
 			if capturing then return end
 			capturing = true
+			local old = b.Text
 			b.Text = "[...]"
 			local conn
 			conn = UserInputService.InputBegan:Connect(function(input, gp)
 				if gp then return end
+				if input.KeyCode == Enum.KeyCode.Escape then
+					b.Text = old
+					capturing = false
+					conn:Disconnect()
+					return
+				end
 				local name = nil
 				if input.UserInputType == Enum.UserInputType.MouseButton1 then name = "MB1"
 				elseif input.UserInputType == Enum.UserInputType.MouseButton2 then name = "MB2"
@@ -626,7 +785,11 @@ function KRV_UI._AttachNested(el, row)
 					bind._key = name
 					b.Text = "[" .. name .. "]"
 					if bOpts.WindowSetting then
-						pcall(function() menuKey = input.KeyCode end)
+						pcall(function()
+							for _, e in ipairs(Enum.KeyCode:GetEnumItems()) do
+								if e.Name == name then menuKey = e; break end
+							end
+						end)
 					end
 					safeCB(bOpts.OnChangedCallback, name)
 					capturing = false
@@ -635,30 +798,24 @@ function KRV_UI._AttachNested(el, row)
 			end)
 			trackConn(conn)
 		end))
-		-- HoldToInteract : exécute le callback TANT QUE la touche est tenue
-		-- (1 seule connexion globale par bind, pas de boucle)
+		local function matches(input)
+			local m = false
+			pcall(function()
+				if bind._key == "MB1" and input.UserInputType == Enum.UserInputType.MouseButton1 then m = true
+				elseif bind._key == "MB2" and input.UserInputType == Enum.UserInputType.MouseButton2 then m = true
+				elseif bind._key == "MB3" and input.UserInputType == Enum.UserInputType.MouseButton3 then m = true
+				elseif input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode.Name == bind._key then m = true end
+			end)
+			return m
+		end
 		if bOpts.HoldToInteract then
-			local held = false
 			trackConn(UserInputService.InputBegan:Connect(function(input, gp)
-				if KRV_UI._destroyed or gp or held then return end
-				local match = false
-				pcall(function()
-					if bind._key == "MB1" and input.UserInputType == Enum.UserInputType.MouseButton1 then match = true
-					elseif bind._key == "MB2" and input.UserInputType == Enum.UserInputType.MouseButton2 then match = true
-					elseif input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode.Name == bind._key then match = true end
-				end)
-				if match then
-					held = true
+				if KRV_UI._destroyed or gp then return end
+				if matches(input) then
 					safeCB(bOpts.Callback, true)
 					local up
 					up = UserInputService.InputEnded:Connect(function(e2)
-						local same = false
-						pcall(function()
-							if bind._key == "MB1" and e2.UserInputType == Enum.UserInputType.MouseButton1 then same = true
-							elseif bind._key == "MB2" and e2.UserInputType == Enum.UserInputType.MouseButton2 then same = true
-							elseif e2.KeyCode ~= Enum.KeyCode.Unknown and e2.KeyCode.Name == bind._key then same = true end
-						end)
-						if same then held = false; safeCB(bOpts.Callback, false); up:Disconnect() end
+						if matches(e2) then safeCB(bOpts.Callback, false); up:Disconnect() end
 					end)
 					trackConn(up)
 				end
@@ -666,136 +823,130 @@ function KRV_UI._AttachNested(el, row)
 		else
 			trackConn(UserInputService.InputBegan:Connect(function(input, gp)
 				if KRV_UI._destroyed or gp then return end
-				local match = false
-				pcall(function()
-					if bind._key == "MB1" and input.UserInputType == Enum.UserInputType.MouseButton1 then match = true
-					elseif bind._key == "MB2" and input.UserInputType == Enum.UserInputType.MouseButton2 then match = true
-					elseif input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode.Name == bind._key then match = true end
-				end)
-				if match then safeCB(bOpts.Callback, true) end
+				if matches(input) then safeCB(bOpts.Callback, true) end
 			end))
 		end
 		return bind
 	end
-	function el:AddDropdown(dOpts, _dIdx)
+	function el:AddDropdown(dOpts)
 		dOpts = dOpts or {}
 		local options = dOpts.Options or {}
 		local cur = dOpts.CurrentOption
 		if cur == nil then cur = options[1] end
-		local b = mk("TextButton", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -2, 0.5, 0),
-			Size = UDim2.new(0, 110, 0, 20), BackgroundColor3 = THEME.Bg, TextColor3 = THEME.Text,
-			Font = FONT_R, TextSize = 11, Text = tostring(cur or "—") .. " ▾", BorderSizePixel = 0 }, row)
+		local b = mk("TextButton", { AnchorPoint = Vector2.new(0, 0.5),
+			Position = place(118), Size = UDim2.new(0, 118, 0, 20),
+			BackgroundColor3 = THEME.Bg, TextColor3 = THEME.Text, Font = FONT_R,
+			TextSize = 11, TextTruncate = Enum.TextTruncate.AtEnd,
+			Text = tostring(cur or "—") .. "  ▾", BorderSizePixel = 0 }, row)
 		corner(b, 5); stroke(b, THEME.Line, 1, 0.3)
 		local dd = { _options = options, _cur = cur, _cb = dOpts.Callback }
-		local open, listF = false, nil
-		local function close()
-			open = false
-			if listF then pcall(function() listF:Destroy() end); listF = nil end
-		end
 		function dd:Set(o)
 			if KRV_UI._destroyed then return end
 			if type(o) == "table" then
 				if o.Options then dd._options = o.Options end
 				if o.CurrentOption ~= nil then
 					dd._cur = o.CurrentOption
-					b.Text = tostring(dd._cur) .. " ▾"
+					b.Text = tostring(dd._cur) .. "  ▾"
 					safeCB(dd._cb, dd._cur)
 				end
 			end
 		end
 		trackConn(b.MouseButton1Click:Connect(function()
-			if open then close(); return end
-			open = true
-			listF = mk("Frame", { Position = UDim2.new(1, -120, 1, 2), Size = UDim2.new(0, 110, 0,
-				math.min(#dd._options * 22 + 6, 132)), BackgroundColor3 = THEME.Bg2,
-				BorderSizePixel = 0, ZIndex = 50 }, b)
-			corner(listF, 6); stroke(listF, THEME.Line, 1, 0.2)
-			for _, opt in ipairs(dd._options) do
-				local ob = mk("TextButton", { Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1,
-					TextColor3 = THEME.Text, Font = FONT_R, TextSize = 11,
-					TextXAlignment = Enum.TextXAlignment.Left, Text = "  " .. tostring(opt),
-					BorderSizePixel = 0, ZIndex = 51 }, listF)
-				trackConn(ob.MouseButton1Click:Connect(function()
-					dd._cur = opt
-					b.Text = tostring(opt) .. " ▾"
-					close()
-					safeCB(dd._cb, opt)
-				end))
-			end
+			if #dd._options == 0 then return end
+			local h = math.min(#dd._options * 24 + 8, 176)
+			openFloat(b, 150, h, function(panel, close)
+				local scroll = mk("ScrollingFrame", { Size = UDim2.new(1, 0, 1, 0),
+					BackgroundTransparency = 1, BorderSizePixel = 0,
+					ScrollBarThickness = 3, ScrollBarImageColor3 = THEME.Line,
+					CanvasSize = UDim2.new(0, 0, 0, #dd._options * 24),
+					AutomaticCanvasSize = Enum.AutomaticSize.Y }, panel)
+				pad(scroll, 4, 4, 4, 4)
+				vlist(scroll, 2)
+				for _, opt in ipairs(dd._options) do
+					local ob = mk("TextButton", { Size = UDim2.new(1, 0, 0, 24),
+						BackgroundColor3 = (tostring(opt) == tostring(dd._cur)) and THEME.Accent or THEME.Box,
+						TextColor3 = (tostring(opt) == tostring(dd._cur)) and Color3.new(1, 1, 1) or THEME.Text,
+						Font = FONT_R, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left,
+						TextTruncate = Enum.TextTruncate.AtEnd,
+						Text = "  " .. tostring(opt), BorderSizePixel = 0 }, scroll)
+					corner(ob, 5)
+					trackConn(ob.MouseButton1Click:Connect(function()
+						dd._cur = opt
+						b.Text = tostring(opt) .. "  ▾"
+						close()
+						safeCB(dd._cb, opt)
+					end))
+				end
+			end)
 		end))
 		return dd
 	end
-	function el:AddColorPicker(cOpts, _cIdx)
+	function el:AddColorPicker(cOpts)
 		cOpts = cOpts or {}
 		local cur = cOpts.CurrentValue or Color3.fromRGB(255, 255, 255)
-		local b = mk("TextButton", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -2, 0.5, 0),
-			Size = UDim2.new(0, 40, 0, 20), BackgroundColor3 = cur, Text = "",
-			BorderSizePixel = 0 }, row)
+		local b = mk("TextButton", { AnchorPoint = Vector2.new(0, 0.5),
+			Position = place(44), Size = UDim2.new(0, 44, 0, 20),
+			BackgroundColor3 = cur, Text = "", BorderSizePixel = 0 }, row)
 		corner(b, 5); stroke(b, THEME.Line, 1, 0.2)
 		local cp = { _cb = cOpts.Callback, _val = cur }
-		-- Mini-palette : 8 couleurs + blanc, 1 clic = appliqué (pas de boucle)
-		local palette = { Color3.fromRGB(255,60,60), Color3.fromRGB(255,140,40),
-			Color3.fromRGB(255,210,60), Color3.fromRGB(90,220,120), Color3.fromRGB(0,200,255),
-			Color3.fromRGB(0,82,255), Color3.fromRGB(170,100,255), Color3.fromRGB(255,255,255) }
-		local open, palF = false, nil
+		local palette = { Color3.fromRGB(255, 60, 60), Color3.fromRGB(255, 140, 40),
+			Color3.fromRGB(255, 210, 60), Color3.fromRGB(90, 220, 120),
+			Color3.fromRGB(0, 200, 255), Color3.fromRGB(0, 82, 255),
+			Color3.fromRGB(170, 100, 255), Color3.fromRGB(255, 255, 255) }
 		trackConn(b.MouseButton1Click:Connect(function()
-			if open then
-				open = false
-				if palF then pcall(function() palF:Destroy() end); palF = nil end
-				return
-			end
-			open = true
-			palF = mk("Frame", { Position = UDim2.new(1, -88, 1, 2), Size = UDim2.new(0, 88, 0, 48),
-				BackgroundColor3 = THEME.Bg2, BorderSizePixel = 0, ZIndex = 50 }, b)
-			corner(palF, 6)
-			for i, c in ipairs(palette) do
-				local cb = mk("TextButton", { Position = UDim2.new(0, 4 + ((i - 1) % 4) * 20, 0, 4 + math.floor((i - 1) / 4) * 20),
-					Size = UDim2.new(0, 16, 0, 16), BackgroundColor3 = c, Text = "",
-					BorderSizePixel = 0, ZIndex = 51 }, palF)
-				corner(cb, 4)
-				trackConn(cb.MouseButton1Click:Connect(function()
-					cp._val = c
-					b.BackgroundColor3 = c
-					open = false
-					if palF then pcall(function() palF:Destroy() end); palF = nil end
-					safeCB(cp._cb, c)
-				end))
-			end
+			openFloat(b, 104, 64, function(panel, close)
+				pad(panel, 6, 6, 6, 6)
+				for i, c in ipairs(palette) do
+					local cb = mk("TextButton", {
+						Position = UDim2.new(0, 6 + ((i - 1) % 4) * 23, 0, 6 + math.floor((i - 1) / 4) * 23),
+						Size = UDim2.new(0, 19, 0, 19), BackgroundColor3 = c, Text = "",
+						BorderSizePixel = 0 }, panel)
+					corner(cb, 5); stroke(cb, THEME.Line, 1, 0.2)
+					trackConn(cb.MouseButton1Click:Connect(function()
+						cp._val = c
+						b.BackgroundColor3 = c
+						close()
+						safeCB(cp._cb, c)
+					end))
+				end
+			end)
 		end))
 		return cp
 	end
 end
 
 --═══════════════════════════════════════════════════════════════════════════════
---  CONFIGS (locales, JSON, tout en pcall : jamais de throw si pas de FS)
+--  CONFIGS + LIFECYCLE
 --═══════════════════════════════════════════════════════════════════════════════
 function KRV_UI._ConfigBox(sec)
-	local row = baseRow(sec, 30)
-	local b1 = mk("TextButton", { Position = UDim2.new(0, 4, 0, 0), Size = UDim2.new(0.5, -6, 1, 0),
-		BackgroundColor3 = THEME.Accent, TextColor3 = Color3.new(1, 1, 1), Font = FONT_B,
-		TextSize = 11, Text = "💾 Sauver", BorderSizePixel = 0 }, row)
+	local row = mk("Frame", { Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1 }, sec._box)
+	local b1 = mk("TextButton", { Position = UDim2.new(0, 0, 0, 0),
+		Size = UDim2.new(0.5, -3, 1, 0), BackgroundColor3 = THEME.Accent,
+		TextColor3 = Color3.new(1, 1, 1), Font = FONT_B, TextSize = 11,
+		Text = "💾 Sauver", BorderSizePixel = 0 }, row)
 	corner(b1, 6)
-	local b2 = mk("TextButton", { Position = UDim2.new(0.5, 2, 0, 0), Size = UDim2.new(0.5, -6, 1, 0),
-		BackgroundColor3 = THEME.Bg, TextColor3 = THEME.Text, Font = FONT_B,
-		TextSize = 11, Text = "📂 Charger", BorderSizePixel = 0 }, row)
-	corner(b2, 6)
+	local b2 = mk("TextButton", { Position = UDim2.new(0.5, 3, 0, 0),
+		Size = UDim2.new(0.5, -3, 1, 0), BackgroundColor3 = THEME.Bg,
+		TextColor3 = THEME.Text, Font = FONT_B, TextSize = 11,
+		Text = "📂 Charger", BorderSizePixel = 0 }, row)
+	corner(b2, 6); stroke(b2, THEME.Line, 1, 0.25)
 	trackConn(b1.MouseButton1Click:Connect(function()
-		KRV_UI:Notification({ Title = "Config", Content = "Sauvegarde auto à la fermeture. Les toggles sont persistés via les Flags.", Duration = 3 })
+		KRV_UI:Notification({ Title = "Config",
+			Content = "Tes réglages sont conservés via les Flags à la fermeture.", Duration = 3 })
 	end))
 	trackConn(b2.MouseButton1Click:Connect(function()
-		KRV_UI:Notification({ Title = "Config", Content = "Autoload chargé au démarrage si présent.", Duration = 3 })
+		KRV_UI:Notification({ Title = "Config",
+			Content = "L'autoload se charge automatiquement au démarrage.", Duration = 3 })
 	end))
 	return {}
 end
 
 function KRV_UI:LoadAutoloadConfig()
-	return true -- les Flags sont appliqués par le hub au boot ; rien à faire ici
+	return true
 end
 
 function KRV_UI:OnDestroy(fn)
-	for _, t in ipairs(self._winTabs or {}) do _ = t end
 	self._pendingDestroy = fn
-	-- branché sur la fenêtre courante si déjà créée
 	if self._lastWin then self._lastWin._onDestroy = fn end
 end
 
@@ -806,10 +957,9 @@ function KRV_UI:Destroy()
 	table.clear(AllConns)
 	for _, g in ipairs(AllGuis) do pcall(function() g:Destroy() end) end
 	table.clear(AllGuis)
-	notifGui, notifStack = nil, nil
+	notifGui, notifStack, overlayGui = nil, nil, nil
 end
 
--- Hook : CreateWindow mémorise la fenêtre pour OnDestroy tardif
 local _rawCreate = KRV_UI.CreateWindow
 function KRV_UI:CreateWindow(o)
 	local w = _rawCreate(self, o)
