@@ -6,8 +6,10 @@ import type { ChatMessageDTO, PlanItem, PollInput, RunEvent, ToolResultPart } fr
 
 export type StreamingTool = { id: string; name: string; json: string };
 export type StreamingMessage = { messageId: string; model: string; text: string; thinking: string; tools: StreamingTool[] };
-export type SandboxState = { status: string; previewUrl: string | null; message?: string };
+export type SandboxState = { status: string; previewUrl: string | null; message?: string; queue?: { position: number; etaSeconds: number } | null };
 export type PendingPoll = { toolCallId: string; poll: PollInput };
+export type SubAgentState = { taskId: string; name: string; status: string; label?: string; steps?: number; costMicros?: number };
+export type BrowserView = { image: string | null; cursor: { x: number; y: number } | null; label: string; url?: string; busy: boolean; at: number };
 
 export type AgentCallbacks = {
   onFilesChanged?: (paths: string[], deleted: string[]) => void;
@@ -41,7 +43,7 @@ async function readSSE(res: Response, onEvent: (e: RunEvent | { type: "idle" }) 
   }
 }
 
-export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[]; running: boolean }, cb: AgentCallbacks) {
+export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[]; running: boolean; paused?: boolean }, cb: AgentCallbacks) {
   const [messages, setMessages] = useState<ChatMessageDTO[]>(initial.messages);
   const [streaming, setStreaming] = useState<StreamingMessage | null>(null);
   const [running, setRunning] = useState(initial.running);
@@ -49,6 +51,11 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
   const [plan, setPlan] = useState<PlanItem[] | null>(null);
   const [runCost, setRunCost] = useState(0);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [paused, setPaused] = useState(Boolean(initial.paused) && !initial.running);
+  const [pausing, setPausing] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [subagents, setSubagents] = useState<Record<string, Record<string, SubAgentState>>>({});
+  const [browser, setBrowser] = useState<BrowserView | null>(null);
   const cbRef = useRef(cb);
   useEffect(() => {
     cbRef.current = cb;
@@ -73,8 +80,28 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
           break;
         case "run_start":
           setRunning(true);
+          setPaused(false);
+          setPausing(false);
           setRunCost(0);
           setLastError(null);
+          break;
+        case "status":
+          setStatus(e.message);
+          break;
+        case "compaction":
+          setStatus(null);
+          break;
+        case "subagent":
+          setSubagents((all) => ({
+            ...all,
+            [e.toolCallId]: { ...(all[e.toolCallId] ?? {}), [e.taskId]: { taskId: e.taskId, name: e.name, status: e.status, label: e.label, steps: e.steps, costMicros: e.costMicros } },
+          }));
+          break;
+        case "browser_intent":
+          setBrowser((b) => ({ image: b?.image ?? null, cursor: e.cursor ?? b?.cursor ?? null, label: e.label, url: b?.url, busy: true, at: Date.now() }));
+          break;
+        case "browser_frame":
+          setBrowser({ image: e.image, cursor: e.cursor, label: e.action, url: e.url, busy: false, at: Date.now() });
           break;
         case "message":
           if (e.message.role === "user") setMessages((prev) => prev.filter((m) => !m.id.startsWith("tmp_")));
@@ -124,6 +151,10 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
         case "run_end":
           setRunning(false);
           setStreaming(null);
+          setStatus(null);
+          setPausing(false);
+          setPaused(e.status === "paused");
+          setBrowser((b) => (b ? { ...b, busy: false } : b));
           if (e.error) {
             setLastError(e.error);
             toast.error(e.error);
@@ -150,6 +181,7 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
           if (data.latestRun?.status !== "running") {
             setRunning(false);
             setStreaming(null);
+            setPaused(data.latestRun?.status === "paused");
           }
         }
       }
@@ -169,8 +201,9 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
   }, [initial.running, projectId, connect]);
 
   const send = useCallback(
-    async (body: { prompt?: string; pollAnswer?: { toolCallId: string; answer: string }; model: string; tokenSaver: boolean }) => {
+    async (body: { prompt?: string; attachments?: string[]; pollAnswer?: { toolCallId: string; answer: string }; resume?: boolean; model: string; tokenSaver: boolean }) => {
       setRunning(true);
+      setPaused(false);
       setLastError(null);
       setPlan(null);
       if (body.prompt) {
@@ -181,7 +214,7 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
             id: `tmp_${Date.now()}`,
             seq: Number.MAX_SAFE_INTEGER,
             role: "user",
-            content: { kind: "user", text: body.prompt! },
+            content: { kind: "user", text: body.prompt!, ...(body.attachments?.length ? { attachments: body.attachments.map((id) => ({ id, name: "image", mime: "image/*" })) } : {}) },
             costMicros: 0,
             inputTokens: 0,
             outputTokens: 0,
@@ -223,6 +256,25 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
     await fetch(`/api/projects/${projectId}/stop`, { method: "POST" }).catch(() => {});
   }, [projectId]);
 
+  const pause = useCallback(async () => {
+    setPausing(true);
+    const res = await fetch(`/api/projects/${projectId}/pause`, { method: "POST" }).catch(() => null);
+    if (!res?.ok) setPausing(false);
+    else toast("Pausing after the current step…");
+  }, [projectId]);
+
+  const compact = useCallback(async () => {
+    const res = await fetch(`/api/projects/${projectId}/compact`, { method: "POST" }).catch(() => null);
+    const data = await res?.json().catch(() => null);
+    if (!res?.ok) {
+      toast.error(data?.error?.message ?? "Could not compact the conversation");
+      return false;
+    }
+    if (data?.message) setMessages((prev) => [...prev, data.message as ChatMessageDTO]);
+    toast.success("Conversation compacted. The agent keeps a summary of everything so far.");
+    return true;
+  }, [projectId]);
+
   // Results by tool call id (persisted tool messages + live results).
   const results = useMemo(() => {
     const map: Record<string, ToolResultPart> = { ...liveResults };
@@ -252,5 +304,5 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
     return null;
   }, [messages, plan]);
 
-  return { messages, streaming, running, results, pendingPoll, plan: latestPlan, runCost, lastError, send, stop };
+  return { messages, streaming, running, results, pendingPoll, plan: latestPlan, runCost, lastError, send, stop, pause, pausing, paused, compact, status, subagents, browser, setBrowser };
 }

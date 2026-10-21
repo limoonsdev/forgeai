@@ -5,7 +5,7 @@ import { projects } from "@/lib/db/schema";
 import { ensureSandbox, getLiveSandbox, touchSandbox, type SandboxHandle } from "@/lib/sandbox";
 import { deleteFile, FileError, getAllFiles, listFiles, readFile, renameFile, writeFiles } from "@/lib/server/files";
 import { findSkill, getEnabledSkills } from "@/lib/skills";
-import { toolSchemas, type ToolName } from "./tools";
+import { describeToolCall, toolSchemas, type ToolName } from "./tools";
 import type { PollInput, RunEvent, ToolCallPart, ToolResultPart } from "./types";
 import type { ModelInfo } from "./models";
 import { webFetch, webSearch } from "./web";
@@ -317,12 +317,15 @@ async function execute(ctx: ToolContext, name: ToolName, input: unknown): Promis
       if (!c) return { output: "Sub-agents cannot spawn other sub-agents.", isError: true };
       const files = await listFiles(ctx.projectId);
       const brief = `# Project\n${c.projectName}\n\n# Current files\n${files.map((f) => f.path).join("\n")}\n\n# Team\n${agents.map((a) => `- ${a.name}: ${a.task.slice(0, 160)}`).join("\n")}`;
-      const { report, totalCost } = await runSubAgents(
+      const { report, totalCost, results } = await runSubAgents(
         { ...ctx, runId: c.runId, toolCallId: (input as { __toolCallId?: string }).__toolCallId ?? "", model: c.model, tokenSaver: c.tokenSaver, parallel: c.parallelAgents, execute: executeToolCall },
         agents,
         brief,
       );
-      return { output: `Sub-agent reports:\n\n${report}\n\nReview their work (read the files), integrate it, then run check_preview.`, meta: { subagentCostMicros: totalCost } };
+      return {
+        output: `Sub-agent reports:\n\n${report}\n\nReview their work (read the files), integrate it, then run check_preview.`,
+        meta: { subagentCostMicros: totalCost, agents: results.map((r) => ({ name: r.name, status: r.status, changed: r.changed.length, costMicros: r.cost })) },
+      };
     }
     case "notify_user": {
       const { message } = toolSchemas.notify_user.parse(input);
@@ -333,6 +336,8 @@ async function execute(ctx: ToolContext, name: ToolName, input: unknown): Promis
       const args = toolSchemas.browser.parse(input);
       const sbx = await sandboxFor(ctx);
       if (!sbx) return { output: "The preview VM is not available.", isError: true };
+      // Tell the viewer where the cursor is heading so it can glide there while the action runs.
+      ctx.emit({ type: "browser_intent", action: args.action, cursor: typeof args.x === "number" && typeof args.y === "number" ? { x: args.x, y: args.y } : null, label: describeToolCall("browser", args as Record<string, unknown>) });
       const r = await browserAction(ctx.projectId, sbx, args);
       ctx.emit({ type: "browser_frame", image: r.image, cursor: r.cursor, action: r.label, url: r.url });
       return { output: `${r.label}. Page: ${r.url} (title: ${r.title || "untitled"})${r.consoleErrors.length ? `\nConsole errors:\n${r.consoleErrors.join("\n")}` : ""}`, images: [{ mime: "image/jpeg", data: r.image }], meta: { url: r.url } };

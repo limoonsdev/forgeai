@@ -45,15 +45,22 @@ export type AuditReport = {
 };
 
 export async function auditPage(_projectId: string, sbx: SandboxHandle, path: string): Promise<AuditReport> {
-  const r = await sbx.exec(`node /opt/forged/audit.mjs ${q(path)}`, { timeoutMs: 150_000 });
-  let data: Omit<AuditReport, "text"> & { error?: string };
-  try {
-    data = JSON.parse(r.stdout.trim().split("\n").pop() || "{}");
-  } catch {
-    throw new Error(`Audit failed: ${(r.stderr || r.stdout).slice(-300)}`);
+  let data: (Omit<AuditReport, "text"> & { error?: string }) | null = null;
+  let lastErr = "";
+  // The first run in a fresh VM also starts Chromium; retry once if it didn't produce a report.
+  for (let attempt = 0; attempt < 2 && !data; attempt++) {
+    const r = await sbx.exec(`node /opt/forged/audit.mjs ${q(path)}`, { timeoutMs: 150_000 });
+    const line = r.stdout.trim().split("\n").pop() ?? "";
+    try {
+      const parsed = line ? JSON.parse(line) : null;
+      if (parsed?.scores) data = parsed;
+      else lastErr = parsed?.error ?? (r.stderr || r.stdout).slice(-300);
+    } catch {
+      lastErr = (r.stderr || r.stdout).slice(-300);
+    }
   }
-  if (data.error) throw new Error(`Audit: ${data.error}`);
-  data.issues = data.issues.filter((i) => !NOISE.test(i.message));
+  if (!data) throw new Error(`The audit couldn't run: ${lastErr || "no output"}`);
+  data.issues = (data.issues ?? []).filter((i) => !NOISE.test(i.message));
   const s = data.scores;
   const text = [
     `Audit of ${data.path}: performance ${s.performance}, accessibility ${s.accessibility}, SEO ${s.seo}, best practices ${s.bestPractices} (out of 100).`,

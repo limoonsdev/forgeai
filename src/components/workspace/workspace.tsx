@@ -5,7 +5,21 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { toast } from "sonner";
-import { ArrowLeftIcon, CodeIcon, DownloadIcon, GiftIcon, MessageSquareIcon, MonitorIcon, MoreHorizontalIcon, PowerIcon, Trash2Icon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CodeIcon,
+  DownloadIcon,
+  FoldVerticalIcon,
+  GiftIcon,
+  MessageSquareIcon,
+  MonitorIcon,
+  MoreHorizontalIcon,
+  PauseCircleIcon,
+  PlayIcon,
+  PowerIcon,
+  RefreshCcwIcon,
+  Trash2Icon,
+} from "lucide-react";
 import type { PublicModel } from "@/lib/ai/catalog";
 import type { ChatMessageDTO } from "@/lib/ai/types";
 import { CreditsPill } from "@/components/shared/credits-pill";
@@ -16,8 +30,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { LogoMark } from "@/components/brand/logo";
 import { cn, formatCredits } from "@/lib/utils";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { AgentBrowser } from "./agent-browser";
+import { AuditSheet, type AuditReportDTO } from "./audit-sheet";
 import { ChatMessages } from "./chat";
 import { CodePanel } from "./code-panel";
+import { PublishDialog } from "./publish-dialog";
 import { PlanCard } from "./plan-card";
 import { PreviewPanel } from "./preview-panel";
 import { ShareDialog, type ShareState } from "./share-dialog";
@@ -27,6 +44,8 @@ export type WorkspaceProps = {
   project: { id: string; name: string; description: string; status: string; model: string; tokenSaver: boolean };
   messages: ChatMessageDTO[];
   running: boolean;
+  paused: boolean;
+  emailVerified: boolean;
   models: PublicModel[];
   balance: number;
   files: string[];
@@ -53,6 +72,12 @@ export function Workspace(props: WorkspaceProps) {
   const [mobileView, setMobileView] = useState<"chat" | "preview" | "code">("chat");
   const [outOfCredits, setOutOfCredits] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [route, setRoute] = useState("/");
+  const [audit, setAudit] = useState<AuditReportDTO | null>(null);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditing, setAuditing] = useState(false);
+  const [agentView, setAgentView] = useState(false);
+  const dismissedAgentView = useRef(false);
   const composer = useRef<ComposerHandle>(null);
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const selectedRef = useRef(selected);
@@ -70,7 +95,7 @@ export function Workspace(props: WorkspaceProps) {
 
   const agent = useAgent(
     props.project.id,
-    { messages: props.messages, running: props.running },
+    { messages: props.messages, running: props.running, paused: props.paused },
     {
       onFilesChanged: (paths, deleted) => {
         setChanged((c) => new Set([...c, ...paths]));
@@ -81,7 +106,7 @@ export function Workspace(props: WorkspaceProps) {
         if (p.name) setName(p.name);
       },
       onSandbox: (s) => {
-        setSandbox((prev) => ({ status: s.status, previewUrl: s.previewUrl ?? prev.previewUrl, message: s.message === "refresh" ? prev.message : s.message }));
+        setSandbox((prev) => ({ status: s.status, previewUrl: s.previewUrl ?? prev.previewUrl, message: s.message === "refresh" ? prev.message : s.message, queue: s.status === "queued" ? prev.queue : null }));
         if (s.refresh) setRefreshKey((k) => k + 1);
       },
       onBalance: setBalance,
@@ -89,38 +114,86 @@ export function Workspace(props: WorkspaceProps) {
     },
   );
 
-  // Keep the VM warm while the workspace is open.
-  useEffect(() => {
-    if (!props.sandboxAvailable || props.sandbox.status !== "running") return;
-    void fetch(`/api/projects/${props.project.id}/sandbox`, { method: "POST" }).then(async (res) => {
-      if (res.ok) {
-        const data = await res.json();
-        setSandbox({ status: "running", previewUrl: data.previewUrl });
-      } else setSandbox({ status: "stopped", previewUrl: null });
+  const sandboxUrl = `/api/projects/${props.project.id}/sandbox`;
+
+  const applySandbox = useCallback((data: { status: string; previewUrl?: string | null; queue?: { position: number; etaSeconds: number } | null; message?: string }) => {
+    setSandbox((prev) => {
+      if (data.status === "running" && prev.status !== "running") setRefreshKey((k) => k + 1);
+      return { status: data.status, previewUrl: data.previewUrl ?? (data.status === "running" ? prev.previewUrl : null), queue: data.queue ?? null, message: data.message };
     });
-  }, [props.project.id, props.sandboxAvailable, props.sandbox.status]);
+  }, []);
+
+  // While queued or booting, poll the VM state; while running, send a heartbeat so it isn't recycled.
+  useEffect(() => {
+    if (!props.sandboxAvailable) return;
+    const waiting = sandbox.status === "queued" || sandbox.status === "starting";
+    if (!waiting && sandbox.status !== "running") return;
+    const tick = async () => {
+      if (document.hidden && !waiting) return;
+      const res = await fetch(`${sandboxUrl}${waiting ? "" : "?heartbeat=1"}`).catch(() => null);
+      const data = await res?.json().catch(() => null);
+      if (res?.ok && data && (waiting || data.status !== "running")) applySandbox(data);
+    };
+    const t = setInterval(tick, waiting ? 2500 : 60_000);
+    if (waiting) void tick();
+    return () => clearInterval(t);
+  }, [props.sandboxAvailable, sandbox.status, sandboxUrl, applySandbox]);
 
   const startSandbox = async () => {
-    setSandbox((s) => ({ ...s, status: "starting", message: "Booting your VM…" }));
-    const res = await fetch(`/api/projects/${props.project.id}/sandbox`, { method: "POST" });
+    setSandbox((s) => ({ ...s, status: "starting", message: undefined }));
+    const res = await fetch(sandboxUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start" }) });
+    const data = await res.json().catch(() => null);
+    if (res.ok) applySandbox(data);
+    else setSandbox({ status: "error", previewUrl: null, message: data?.error?.message });
+  };
+
+  const restartSandbox = async () => {
+    setSandbox((s) => ({ ...s, status: "restarting" }));
+    const res = await fetch(sandboxUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "restart" }) });
     const data = await res.json().catch(() => null);
     if (res.ok) {
-      setSandbox({ status: "running", previewUrl: data.previewUrl });
+      applySandbox(data);
       setRefreshKey((k) => k + 1);
-    } else setSandbox({ status: "error", previewUrl: null, message: data?.error?.message });
+      toast.success("VM restarted");
+    } else {
+      setSandbox((s) => ({ ...s, status: "running" }));
+      toast.error(data?.error?.message ?? "Couldn't restart the VM");
+    }
   };
 
   const stopSandbox = async () => {
-    await fetch(`/api/projects/${props.project.id}/sandbox`, { method: "DELETE" });
+    await fetch(sandboxUrl, { method: "DELETE" });
     setSandbox({ status: "stopped", previewUrl: null });
   };
 
-  const submit = async () => {
+  const runAudit = async () => {
+    setAuditing(true);
+    const res = await fetch(`/api/projects/${props.project.id}/audit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: route }) }).catch(() => null);
+    const data = await res?.json().catch(() => null);
+    setAuditing(false);
+    if (!res?.ok) return toast.error(data?.error?.message ?? "The audit failed");
+    setAudit(data.report);
+    setAuditOpen(true);
+  };
+
+  // Show the agent's browser as soon as it starts driving one (unless the user closed it this run).
+  useEffect(() => {
+    if (!agent.browser || dismissedAgentView.current) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- follow the agent's browser activity
+    setAgentView(true);
+    setTab("preview");
+  }, [agent.browser]);
+  useEffect(() => {
+    if (agent.running) dismissedAgentView.current = false;
+  }, [agent.running]);
+
+  const submit = async (attachments: string[] = []) => {
     const text = input.trim();
-    if (!text || agent.running) return;
+    if ((!text && !attachments.length) || agent.running) return false;
     setInput("");
-    const ok = await agent.send({ prompt: text, model, tokenSaver });
+    const ok = await agent.send({ prompt: text, attachments, model, tokenSaver });
     if (!ok) setInput(text);
+    return ok;
   };
 
   const saveName = async () => {
@@ -161,10 +234,27 @@ export function Workspace(props: WorkspaceProps) {
           running={agent.running}
           onOpenFile={openFile}
           onAnswerPoll={(toolCallId, answer) => void agent.send({ pollAnswer: { toolCallId, answer }, model, tokenSaver })}
+          subagents={agent.subagents}
+          status={agent.status ?? (agent.running && sandbox.status === "queued" && sandbox.queue ? `Waiting for a VM: #${sandbox.queue.position} in line` : null)}
+          projectId={props.project.id}
+          onOpenBrowser={() => {
+            setAgentView(true);
+            setTab("preview");
+            setMobileView("preview");
+          }}
         />
       )}
       <div className="space-y-2 border-t bg-background/60 p-3 backdrop-blur">
         {agent.plan && agent.running && <PlanCard items={agent.plan} running={agent.running} />}
+        {agent.paused && !agent.running && (
+          <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm" data-testid="paused-banner">
+            <PauseCircleIcon className="size-4 shrink-0 text-primary" />
+            <span className="flex-1">The agent is paused. Resume where it stopped, or send a new message.</span>
+            <Button size="sm" variant="ember" className="h-7" onClick={() => void agent.send({ resume: true, model, tokenSaver })} data-testid="resume-button">
+              <PlayIcon /> Resume
+            </Button>
+          </div>
+        )}
         {agent.running && agent.runCost > 0 && (
           <div className="flex justify-end text-[11px] text-muted-foreground tabular-nums">This run: {formatCredits(agent.runCost, { precise: true })}</div>
         )}
@@ -174,6 +264,8 @@ export function Workspace(props: WorkspaceProps) {
           onChange={setInput}
           onSubmit={submit}
           onStop={agent.stop}
+          onPause={agent.pausing ? undefined : agent.pause}
+          projectId={props.project.id}
           running={agent.running}
           models={props.models}
           model={model}
@@ -200,20 +292,46 @@ export function Workspace(props: WorkspaceProps) {
             {t === "preview" ? "Preview" : "Code"}
           </button>
         ))}
-        <span className="ml-auto pr-2 text-[11px] text-muted-foreground">
-          {sandbox.status === "running" ? "next dev · VM running" : sandbox.status === "starting" ? "VM booting…" : "VM asleep"}
+        <span className="ml-auto pr-2 font-mono text-[10.5px] text-muted-foreground">
+          {sandbox.status === "running"
+            ? "VM running · next dev"
+            : sandbox.status === "starting" || sandbox.status === "restarting"
+              ? "VM starting…"
+              : sandbox.status === "queued"
+                ? `In line${sandbox.queue ? ` · #${sandbox.queue.position}` : ""}`
+                : "VM asleep"}
         </span>
       </div>
       <div className="min-h-0 flex-1">
         {(isDesktop ? tab === "preview" : mobileView === "preview") ? (
-          <PreviewPanel
-            sandbox={sandbox}
-            available={props.sandboxAvailable}
-            refreshKey={refreshKey}
-            onRefresh={() => setRefreshKey((k) => k + 1)}
-            onStart={startSandbox}
-            onStop={stopSandbox}
-          />
+          agentView && agent.browser ? (
+            <AgentBrowser
+              view={agent.browser}
+              onClose={() => {
+                dismissedAgentView.current = true;
+                setAgentView(false);
+              }}
+            />
+          ) : (
+            <PreviewPanel
+              sandbox={sandbox}
+              available={props.sandboxAvailable}
+              refreshKey={refreshKey}
+              onRefresh={() => setRefreshKey((k) => k + 1)}
+              onStart={startSandbox}
+              onStop={stopSandbox}
+              onRestart={restartSandbox}
+              onAudit={runAudit}
+              auditing={auditing}
+              agentViewAvailable={Boolean(agent.browser)}
+              onShowAgentView={() => setAgentView(true)}
+              route={route}
+              onRouteChange={(r) => {
+                setRoute(r);
+                setRefreshKey((k) => k + 1);
+              }}
+            />
+          )
         ) : (
           <CodePanel projectId={props.project.id} files={files} selected={selected} onSelect={setSelected} changed={changed} externalVersion={fileVersion} />
         )}
@@ -246,14 +364,19 @@ export function Workspace(props: WorkspaceProps) {
             {name}
           </button>
         )}
-        {agent.running && (
+        {agent.running ? (
           <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-            <span className="size-1.5 animate-pulse rounded-full bg-primary" /> Forging
+            <span className="size-1.5 animate-pulse rounded-full bg-primary" /> {agent.pausing ? "Pausing…" : "Working"}
           </span>
-        )}
+        ) : agent.paused ? (
+          <span className="flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <PauseCircleIcon className="size-3" /> Paused
+          </span>
+        ) : null}
         <div className="ml-auto flex items-center gap-1.5">
           <CreditsPill micros={balance} className="hidden sm:inline-flex" />
           <ShareDialog projectId={props.project.id} initial={props.share} />
+          <PublishDialog projectId={props.project.id} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="icon-sm" variant="ghost" aria-label="More">
@@ -266,7 +389,13 @@ export function Workspace(props: WorkspaceProps) {
                   <DownloadIcon /> Download code (.zip)
                 </a>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={stopSandbox}>
+              <DropdownMenuItem onSelect={() => void agent.compact()} disabled={agent.running || agent.messages.length < 4}>
+                <FoldVerticalIcon /> Compact conversation
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={restartSandbox} disabled={sandbox.status !== "running"}>
+                <RefreshCcwIcon /> Restart VM
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={stopSandbox} disabled={sandbox.status !== "running"}>
                 <PowerIcon /> Stop VM
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -308,7 +437,9 @@ export function Workspace(props: WorkspaceProps) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>You&apos;re out of credits</DialogTitle>
-            <DialogDescription>Add credits to continue, or invite a friend: you both get $5.</DialogDescription>
+            <DialogDescription>
+              {props.emailVerified ? "Invite a friend and you both get $5 of credits." : "Confirm your email address to receive your free credits. Check your inbox, or resend the email from Settings → Account."}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" asChild>
@@ -317,11 +448,22 @@ export function Workspace(props: WorkspaceProps) {
               </Link>
             </Button>
             <Button variant="ember" asChild>
-              <Link href="/settings/billing">Top up credits</Link>
+              <Link href={props.emailVerified ? "/settings/billing" : "/settings/account"}>{props.emailVerified ? "See plans" : "Confirm my email"}</Link>
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AuditSheet
+        report={audit}
+        open={auditOpen}
+        onOpenChange={setAuditOpen}
+        onFix={(prompt) => {
+          setInput(prompt);
+          setMobileView("chat");
+          composer.current?.focus();
+        }}
+      />
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent>

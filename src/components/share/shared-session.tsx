@@ -94,7 +94,7 @@ export function SharedSession({
             }} />
           </div>
         )}
-        {tab === "code" && <CodePanel projectId={token} filesBase={`/api/share/${token}/files`} files={files} selected={selected} onSelect={setSelected} changed={new Set()} externalVersion={0} readOnly />}
+        {tab === "code" && <CodePanel projectId={token} filesBase={`/api/share/${token}/files`} files={files} selected={selected} onSelect={setSelected} changed={new Set()} externalVersion={0} showExport={false} />}
         {tab === "preview" && project.previewUrl && <iframe src={project.previewUrl} title="Preview" className="h-full w-full border-0 bg-white" sandbox="allow-scripts allow-same-origin allow-forms" />}
       </div>
     </div>

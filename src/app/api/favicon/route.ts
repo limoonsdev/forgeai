@@ -82,7 +82,8 @@ export async function GET(req: Request) {
   const limit = rateLimit(`favicon:${clientIp(req) ?? "unknown"}`, 60, 60_000);
   if (!limit.ok) return respond({ data: null, mime: "", at: 0 });
 
-  const found = await resolveFavicon(host);
+  // Never keep the prompt box waiting: give up after 4 s and show the generic globe.
+  const found = await Promise.race([resolveFavicon(host), new Promise<null>((r) => setTimeout(() => r(null), 4000))]);
   const entry: Entry = { data: found?.data ?? null, mime: found?.mime ?? "", at: Date.now() };
   if (cache.size > 3000) cache.delete(cache.keys().next().value!);
   cache.set(host, entry);

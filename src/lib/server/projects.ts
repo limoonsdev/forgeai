@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { messages, projectFiles, projects, type Project } from "@/lib/db/schema";
 import { stopSandbox } from "@/lib/sandbox";
 import { getActiveRun, stopRun } from "@/lib/ai/run-registry";
-import { getAllFiles } from "./files";
+import { getAllAssets, getAllFiles } from "./files";
 import { ApiError } from "./api";
 import { newId, newSecretToken } from "./ids";
 import { loadTemplateFiles } from "./template";
@@ -128,7 +128,12 @@ export async function exportProjectZip(projectId: string, name: string) {
   const zip = new JSZip();
   const folder = zip.folder(name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "forged-app")!;
   for (const f of await getAllFiles(projectId)) folder.file(f.path, f.content);
-  return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  for (const a of await getAllAssets(projectId)) folder.file(a.path, a.data, { binary: true });
+  folder.file(
+    "FORGED.md",
+    `# ${name}\n\nBuilt with Forged.dev. This is a standard Next.js project.\n\n\`\`\`bash\nnpm install\nnpm run dev     # http://localhost:3000\nnpm run build && npm start\n\`\`\`\n\nEnvironment variables used by your connectors are not included: copy them into a \`.env.local\` file.\n`,
+  );
+  return zip.generateAsync({ type: "uint8array", compression: "DEFLATE", compressionOptions: { level: 6 } });
 }
 
 export async function countMessages(projectId: string) {

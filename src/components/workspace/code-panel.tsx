@@ -3,9 +3,9 @@
 import dynamic from "next/dynamic";
 import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ChevronRightIcon, DownloadIcon, FileIcon, FolderIcon, LoaderCircleIcon, SaveIcon } from "lucide-react";
+import { ChevronRightIcon, DownloadIcon, FileIcon, FolderIcon, ImageIcon, LoaderCircleIcon, LockIcon } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
-import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const MonacoEditor = dynamic(
@@ -104,17 +104,9 @@ type TsDefaults = {
 };
 type TsApi = { typescriptDefaults?: TsDefaults; javascriptDefaults?: TsDefaults };
 
-/** Plain textarea editor used when Monaco cannot load (offline, blocked assets…). */
-function FallbackEditor({ value, onChange, readOnly }: { value: string; onChange: (v: string) => void; readOnly?: boolean }) {
-  return (
-    <textarea
-      value={value}
-      readOnly={readOnly}
-      onChange={(e) => onChange(e.target.value)}
-      spellCheck={false}
-      className="h-full w-full resize-none bg-transparent p-4 font-mono text-[13px] leading-relaxed outline-none"
-    />
-  );
+/** Plain viewer used when Monaco cannot load (offline, blocked assets…). */
+function FallbackViewer({ value }: { value: string }) {
+  return <pre className="h-full w-full overflow-auto p-4 font-mono text-[13px] leading-relaxed whitespace-pre scrollbar-thin">{value}</pre>;
 }
 
 class EditorBoundary extends Component<{ fallback: React.ReactNode; children: React.ReactNode }, { failed: boolean }> {
@@ -127,6 +119,12 @@ class EditorBoundary extends Component<{ fallback: React.ReactNode; children: Re
   }
 }
 
+type Loaded = { kind: "text"; content: string } | { kind: "binary"; mime: string; size: number } | null;
+
+/**
+ * Read-only code browser. Project files can only be changed by the agent: letting users type code
+ * that then runs inside a VM on our servers would be an easy way to smuggle in anything.
+ */
 export function CodePanel({
   projectId,
   files,
@@ -134,8 +132,8 @@ export function CodePanel({
   onSelect,
   changed,
   externalVersion,
-  readOnly = false,
   filesBase,
+  showExport = true,
 }: {
   projectId: string;
   /** Base URL for file reads (defaults to the authenticated project API). */
@@ -146,79 +144,46 @@ export function CodePanel({
   changed: Set<string>;
   /** Bumped when the agent changes the selected file. */
   externalVersion: number;
-  readOnly?: boolean;
+  showExport?: boolean;
 }) {
   const { resolved } = useTheme();
-  const [content, setContent] = useState<string>("");
-  const [original, setOriginal] = useState<string>("");
+  const [file, setFile] = useState<Loaded>(null);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const tree = useMemo(() => buildTree(files), [files]);
   const base = filesBase ?? `/api/projects/${projectId}/files`;
-  const dirty = content !== original;
+  const urlFor = useCallback((path: string) => `${base}/${path.split("/").map(encodeURIComponent).join("/")}`, [base]);
 
   const load = useCallback(
     async (path: string) => {
       setLoading(true);
-      const res = await fetch(`${base}/${path.split("/").map(encodeURIComponent).join("/")}`);
+      const res = await fetch(urlFor(path));
       const data = await res.json().catch(() => null);
       setLoading(false);
       if (!res.ok) {
         toast.error(data?.error?.message ?? "Could not open the file");
         return;
       }
-      setContent(data.content);
-      setOriginal(data.content);
+      setFile(data.binary ? { kind: "binary", mime: data.mime, size: data.size } : { kind: "text", content: data.content });
     },
-    [base],
+    [urlFor],
   );
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch the newly selected file
     if (selected) void load(selected);
-  }, [selected, load]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- the agent changed this file: reload unless the user is editing it
-    if (selected && externalVersion > 0 && !dirty) void load(selected);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [externalVersion]);
-
-  const save = useCallback(async () => {
-    if (!selected || !dirty || readOnly) return;
-    setSaving(true);
-    const res = await fetch(`/api/projects/${projectId}/files/${selected.split("/").map(encodeURIComponent).join("/")}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
-    });
-    setSaving(false);
-    if (res.ok) {
-      setOriginal(content);
-      toast.success(`Saved ${selected}`);
-    } else toast.error("Could not save the file");
-  }, [selected, dirty, readOnly, projectId, content]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        void save();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [save]);
+  }, [selected, load, externalVersion]);
 
   return (
     <div className="flex h-full min-h-0">
       <div className="flex w-56 shrink-0 flex-col border-r">
-        <div className="flex items-center justify-between px-3 py-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+        <div className="flex items-center justify-between px-3 py-2 font-mono text-[10.5px] font-medium tracking-wider text-muted-foreground uppercase">
           Files
-          {!readOnly && (
-            <a href={`/api/projects/${projectId}/export`} className="rounded p-1 hover:bg-accent hover:text-foreground" title="Download as zip">
-              <DownloadIcon className="size-3.5" />
-            </a>
+          {showExport && (
+            <Tooltip content="Download the project (.zip)">
+              <a href={`/api/projects/${projectId}/export`} className="rounded p-1 hover:bg-accent hover:text-foreground" aria-label="Download as zip">
+                <DownloadIcon className="size-3.5" />
+              </a>
+            </Tooltip>
           )}
         </div>
         <div className="flex-1 overflow-y-auto px-1.5 pb-3 scrollbar-thin" data-testid="file-tree">
@@ -228,34 +193,46 @@ export function CodePanel({
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex h-9 items-center gap-2 border-b px-3 text-xs">
           <span className="truncate font-mono text-muted-foreground">{selected ?? "Select a file"}</span>
-          {dirty && <span className="size-1.5 rounded-full bg-primary" />}
-          {!readOnly && selected && (
-            <Button size="sm" variant="ghost" className="ml-auto h-7" onClick={save} disabled={!dirty || saving}>
-              {saving ? <LoaderCircleIcon className="animate-spin" /> : <SaveIcon />} Save
-            </Button>
-          )}
+          <Tooltip content="Code is changed by the agent only. Ask it in the chat, or download the project to edit it elsewhere.">
+            <span className="ml-auto flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px] text-muted-foreground">
+              <LockIcon className="size-3" /> Read-only
+            </span>
+          </Tooltip>
         </div>
         <div className="relative min-h-0 flex-1">
-          {selected ? (
-            loading ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                <LoaderCircleIcon className="mr-2 size-4 animate-spin" />
-              </div>
-            ) : (
-              <EditorBoundary fallback={<FallbackEditor value={content} onChange={setContent} readOnly={readOnly} />}>
+          {!selected ? (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Pick a file to view its code</div>
+          ) : loading || !file ? (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              <LoaderCircleIcon className="mr-2 size-4 animate-spin" />
+            </div>
+          ) : file.kind === "binary" ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-sm text-muted-foreground">
+              {file.mime.startsWith("image/") ? (
+                // eslint-disable-next-line @next/next/no-img-element -- project asset served by our API
+                <img src={`${urlFor(selected)}?raw=1`} alt={selected} className="max-h-[70%] max-w-full rounded-lg border bg-[repeating-conic-gradient(#8882_0_25%,transparent_0_50%)] bg-[length:16px_16px] object-contain" />
+              ) : file.mime.startsWith("video/") ? (
+                <video src={`${urlFor(selected)}?raw=1`} controls className="max-h-[70%] max-w-full rounded-lg border" />
+              ) : file.mime.startsWith("audio/") ? (
+                <audio src={`${urlFor(selected)}?raw=1`} controls />
+              ) : (
+                <ImageIcon className="size-8" />
+              )}
+              <span className="font-mono text-xs">
+                {file.mime} · {(file.size / 1024).toFixed(0)} KB
+              </span>
+            </div>
+          ) : (
+            <EditorBoundary fallback={<FallbackViewer value={file.content} />}>
               <MonacoEditor
                 height="100%"
                 path={selected}
                 language={languageOf(selected)}
-                value={content}
+                value={file.content}
                 theme={resolved === "dark" ? "vs-dark" : "light"}
-                onChange={(v) => setContent(v ?? "")}
                 beforeMount={(monaco) => {
                   // The VM is the source of truth for type errors: keep syntax checks, drop unresolved-import noise.
-                  const m = monaco as unknown as {
-                    typescript?: TsApi;
-                    languages: { typescript?: TsApi };
-                  };
+                  const m = monaco as unknown as { typescript?: TsApi; languages: { typescript?: TsApi } };
                   const ts = m.typescript ?? m.languages.typescript;
                   for (const defaults of [ts?.typescriptDefaults, ts?.javascriptDefaults]) {
                     defaults?.setDiagnosticsOptions({ noSemanticValidation: true, noSyntaxValidation: false });
@@ -263,20 +240,19 @@ export function CodePanel({
                   }
                 }}
                 options={{
-                  readOnly,
+                  readOnly: true,
+                  domReadOnly: true,
+                  readOnlyMessage: { value: "Code is changed by the agent only. Ask it in the chat." },
                   fontSize: 13,
                   minimap: { enabled: false },
                   scrollBeyondLastLine: false,
                   wordWrap: "on",
                   tabSize: 2,
                   padding: { top: 12 },
-                  fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                 }}
               />
-              </EditorBoundary>
-            )
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Pick a file to view its code</div>
+            </EditorBoundary>
           )}
         </div>
       </div>

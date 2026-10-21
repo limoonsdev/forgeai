@@ -94,3 +94,15 @@ export async function notifyUser(userId: string, event: NotificationEvent, paylo
     return 0;
   }
 }
+
+/** Sends a test message to one channel; returns false if delivery failed. */
+export async function sendTestNotification(userId: string, channel: typeof notificationChannels.$inferSelect) {
+  try {
+    const [u] = await db.select({ email: user.email }).from(user).where(eq(user.id, userId));
+    await deliver(channel.type, decryptSecret(channel.target), "Forged test notification", "This channel is set up. You'll get messages here when your builds finish or the agent needs you.", absoluteUrl("/dashboard"), u?.email);
+    return true;
+  } catch (err) {
+    console.warn("[notify] test failed:", (err as Error).message);
+    return false;
+  }
+}

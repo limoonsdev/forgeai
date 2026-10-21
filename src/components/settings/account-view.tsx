@@ -59,6 +59,7 @@ export function AccountView({
     setCurrent(me.data?.session?.token ?? null);
   };
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch of sessions and linked accounts
     void load();
   }, []);
 

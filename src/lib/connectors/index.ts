@@ -19,8 +19,10 @@ export async function saveConnector(userId: string, connectorId: string, values:
   const def = getConnector(connectorId);
   if (!def) throw new ConnectorError("Unknown connector");
   const clean: Record<string, string> = {};
+  // Updating: fields left empty keep their saved value.
+  const existing = (await getConnectorSecrets(userId, connectorId)) ?? {};
   for (const f of def.fields) {
-    const v = (values[f.name] ?? "").trim();
+    const v = (values[f.name] ?? "").trim() || existing[f.name] || "";
     if (!v && !f.optional) throw new ConnectorError(`${f.label} is required`);
     if (v.length > 4000) throw new ConnectorError(`${f.label} is too long`);
     if (/[\r\n]/.test(v)) throw new ConnectorError(`${f.label} must be a single line`);

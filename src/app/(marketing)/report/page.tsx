@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { legalEntity } from "@/lib/legal/entity";
 import { ReportForm } from "@/components/legal/report-form";
 
@@ -13,9 +14,9 @@ export default async function ReportPage({ searchParams }: PageProps<"/report">)
       <h1 className="mt-3 font-display text-3xl font-bold sm:text-4xl">Report content</h1>
       <p className="mt-3 text-muted-foreground">
         Use this form to report an app published on Forged or a shared session that breaks the law or our{" "}
-        <a href="/legal/acceptable-use" className="text-primary underline underline-offset-2">
+        <Link href="/legal/acceptable-use" className="text-primary underline underline-offset-2">
           Acceptable Use Policy
-        </a>
+        </Link>
         . A person reviews every report. You can also email {legalEntity().abuseEmail}.
       </p>
       <ReportForm initialUrl={url} />

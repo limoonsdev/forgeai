@@ -113,7 +113,7 @@ function SocialButtons({ enabled, callbackURL, beforeRedirect }: { enabled: Soci
         data-testid={`oauth-${p.id}`}
       >
         {loading === p.id ? <LoaderCircleIcon className="animate-spin" /> : <BrandLogo id={p.id} className="size-4" />}
-        {wide ? `Continue with ${p.label}` : <span className="sr-only sm:not-sr-only">{p.label}</span>}
+        {wide ? `Continue with ${p.label}` : p.label}
         {!on && <span className="absolute -top-2 right-2 rounded-full border bg-background px-1.5 font-mono text-[9px] tracking-wide text-muted-foreground uppercase">Soon</span>}
       </Button>
     );
@@ -127,7 +127,7 @@ function SocialButtons({ enabled, callbackURL, beforeRedirect }: { enabled: Soci
     <>
       <div className="grid gap-2">
         {button(PROVIDERS[0], true)}
-        <div className="grid grid-cols-4 gap-2">{PROVIDERS.slice(1).map((p) => button(p, false))}</div>
+        <div className="grid grid-cols-2 gap-2">{PROVIDERS.slice(1).map((p) => button(p, false))}</div>
       </div>
       <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
         <span className="h-px flex-1 bg-border" /> or with email <span className="h-px flex-1 bg-border" />

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { preferences } from "@/lib/db/schema";
 import { listModels, pickDefaultModel } from "@/lib/ai/catalog";
 import { loadHistory, toDTO } from "@/lib/ai/history";
+import { getLatestRun } from "@/lib/ai/agent";
 import { getActiveRun } from "@/lib/ai/run-registry";
 import type { PlanId } from "@/lib/config";
 import { getSandboxProvider } from "@/lib/sandbox";
@@ -29,7 +30,7 @@ export default async function ProjectPage({ params }: PageProps<"/project/[id]">
 
   const plan = user.plan as PlanId;
   const [prefs] = await db.select().from(preferences).where(eq(preferences.userId, user.id));
-  const [models, history, files, provider] = await Promise.all([listModels(plan), loadHistory(project.id), listFiles(project.id), getSandboxProvider()]);
+  const [models, history, files, provider, latestRun] = await Promise.all([listModels(plan), loadHistory(project.id), listFiles(project.id), getSandboxProvider(), getLatestRun(project.id)]);
   const running = Boolean(getActiveRun(project.id));
 
   return (
@@ -44,10 +45,12 @@ export default async function ProjectPage({ params }: PageProps<"/project/[id]">
       }}
       messages={history.map((m) => toDTO(m))}
       running={running}
+      paused={!running && latestRun?.status === "paused"}
+      emailVerified={user.emailVerified}
       models={models}
       balance={user.creditsMicros}
       files={files.map((f) => f.path)}
-      sandbox={{ status: running ? project.sandboxStatus : project.sandboxStatus === "starting" ? "stopped" : project.sandboxStatus, previewUrl: project.previewUrl }}
+      sandbox={{ status: project.sandboxStatus, previewUrl: project.sandboxStatus === "running" ? project.previewUrl : null }}
       sandboxAvailable={Boolean(provider)}
       share={{
         enabled: project.shareEnabled,

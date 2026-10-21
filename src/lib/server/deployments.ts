@@ -90,7 +90,11 @@ export async function deploymentStatus(userId: string, projectId: string) {
       const status = (["queued", "building", "live", "failed"].includes(remote.status) ? remote.status : remote.live ? "live" : "failed") as typeof d.status;
       if (status !== d.status || remote.log !== d.log) {
         const patch: Partial<typeof deployments.$inferInsert> = { status, log: remote.log.slice(-60_000), updatedAt: new Date() };
-        if (status === "live" && d.status !== "live") patch.lastDeployedAt = new Date();
+        if (status === "live" && d.status !== "live") {
+          patch.lastDeployedAt = new Date();
+          const url = deploymentUrl(d.subdomain);
+          void import("./notifications").then(({ notifyUser }) => notifyUser(userId, "deploy_live", { text: `Your app is live at ${url}`, projectId }));
+        }
         await db.update(deployments).set(patch).where(eq(deployments.id, d.id));
         Object.assign(d, patch);
       }

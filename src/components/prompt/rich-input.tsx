@@ -122,6 +122,14 @@ function setCaret(root: HTMLElement, offset: number) {
   sel.addRange(r);
 }
 
+/** Sets the favicon of each link that the user has finished typing. */
+function applyFavicons(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>(".prompt-link").forEach((el) => {
+    const host = el.dataset.host;
+    if (host && !el.style.getPropertyValue("--favicon")) el.style.setProperty("--favicon", `url("/api/favicon?host=${encodeURIComponent(host)}")`);
+  });
+}
+
 function render(root: HTMLElement, text: string) {
   root.replaceChildren();
   for (const t of tokenize(text)) {
@@ -129,7 +137,7 @@ function render(root: HTMLElement, text: string) {
       const a = document.createElement("span");
       a.className = "prompt-link";
       a.dataset.host = t.host;
-      a.style.setProperty("--favicon", `url("/api/favicon?host=${encodeURIComponent(t.host)}")`);
+      // The favicon is attached once typing pauses (see applyFavicons), not for every partial host.
       a.textContent = t.text;
       root.appendChild(a);
     } else root.appendChild(document.createTextNode(t.text));
@@ -158,6 +166,11 @@ export const RichInput = forwardRef<
   const el = useRef<HTMLDivElement>(null);
   const composing = useRef(false);
   const lastText = useRef<string>("");
+  const faviconTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleFavicons = useCallback(() => {
+    if (faviconTimer.current) clearTimeout(faviconTimer.current);
+    faviconTimer.current = setTimeout(() => el.current && applyFavicons(el.current), 700);
+  }, []);
 
   useImperativeHandle(ref, () => ({
     focus: () => {
@@ -177,6 +190,7 @@ export const RichInput = forwardRef<
     if (!node || value === lastText.current) return;
     const hadFocus = document.activeElement === node;
     render(node, value);
+    applyFavicons(node);
     lastText.current = value;
     if (hadFocus) setCaret(node, value.length);
   }, [value]);
@@ -198,8 +212,9 @@ export const RichInput = forwardRef<
       if (caret !== null) setCaret(node, Math.min(caret, domText.length));
     }
     lastText.current = domText;
+    scheduleFavicons();
     onChange(domText);
-  }, [maxLength, onChange]);
+  }, [maxLength, onChange, scheduleFavicons]);
 
   const insertText = (text: string) => {
     // execCommand keeps the native undo stack; fall back to a manual Range insert.
@@ -274,3 +289,27 @@ export const RichInput = forwardRef<
     </div>
   );
 });
+
+/** Read-only version for sent messages: links are clickable and show their favicon. */
+export function LinkifiedText({ text }: { text: string }) {
+  return (
+    <>
+      {tokenize(text).map((t, i) =>
+        t.url && t.host ? (
+          <a
+            key={i}
+            href={t.url.startsWith("www.") ? `https://${t.url}` : t.url}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="prompt-link"
+            style={{ "--favicon": `url("/api/favicon?host=${encodeURIComponent(t.host)}")` } as React.CSSProperties}
+          >
+            {t.text}
+          </a>
+        ) : (
+          <span key={i}>{t.text}</span>
+        ),
+      )}
+    </>
+  );
+}

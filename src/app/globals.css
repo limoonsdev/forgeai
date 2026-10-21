@@ -360,3 +360,11 @@ html:not(.dark) .prompt-link {
 .legal-prose table { @apply my-4 block w-full overflow-x-auto text-sm; }
 .legal-prose th { @apply border-b px-3 py-2 text-left font-semibold whitespace-nowrap; }
 .legal-prose td { @apply border-b px-3 py-2 align-top text-muted-foreground; }
+@keyframes cursor-ripple {
+  from { transform: scale(0.3); opacity: 1; }
+  to { transform: scale(1.6); opacity: 0; }
+}
+@keyframes queue-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}

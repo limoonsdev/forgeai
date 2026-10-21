@@ -123,6 +123,7 @@ export type RunEvent =
   | { type: "run_end"; status: string; error?: string; runCostMicros: number }
   | { type: "subagent"; toolCallId: string; taskId: string; name: string; status: string; label?: string; steps?: number; costMicros?: number }
   | { type: "browser_frame"; image: string; cursor: { x: number; y: number } | null; action: string; url?: string }
+  | { type: "browser_intent"; action: string; cursor: { x: number; y: number } | null; label: string }
   | { type: "compaction"; summary: string }
   | { type: "status"; message: string }
   | { type: "ping" };
