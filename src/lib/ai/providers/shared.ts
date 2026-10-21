@@ -8,6 +8,10 @@ export type ProviderRequest = {
   tools: ToolDefinition[];
   tokenSaver: boolean;
   signal?: AbortSignal;
+  /** Base64 image data for user attachments referenced in the history. */
+  attachments?: Map<string, { mime: string; data: string }>;
+  /** Override the output budget (used by summarizers and sub-agents). */
+  maxTokens?: number;
 };
 
 export type ProviderStream = AsyncGenerator<ProviderEvent | { type: "retry" }, void, void>;
@@ -22,11 +26,25 @@ export class ProviderError extends Error {
   }
 }
 
+/** Drops everything before the latest compaction summary. */
+export function fromLastCompaction(messages: NeutralMessage[]): NeutralMessage[] {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === "user" && m.content.kind === "compaction") return messages.slice(i);
+  }
+  return messages;
+}
+
+export function compactionText(summary: string) {
+  return `<conversation_summary>\n${summary}\n</conversation_summary>\nThe earlier conversation was compacted into the summary above to save context. Continue from where it left off; read files again if you need their exact current content.`;
+}
+
 /**
  * Guarantees every tool call has a matching result in the following message.
  * Runs deterministically so a replayed history is always identical.
  */
-export function normalizeHistory(messages: NeutralMessage[]): NeutralMessage[] {
+export function normalizeHistory(all: NeutralMessage[]): NeutralMessage[] {
+  const messages = fromLastCompaction(all);
   const out: NeutralMessage[] = [];
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];

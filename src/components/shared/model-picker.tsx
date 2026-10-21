@@ -83,7 +83,7 @@ export function ModelPicker({
                           {m.locked && <LockIcon className="size-3 text-muted-foreground" />}
                         </span>
                         <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
-                          {!m.available ? "Not configured on this server" : m.locked ? `Requires the ${m.minPlan === "pro" ? "Pro" : "Studio"} plan` : m.description}
+                          {!m.available ? "Not configured on this server" : m.locked ? `Requires the ${m.minPlan ? m.minPlan[0].toUpperCase() + m.minPlan.slice(1) : "Pro"} plan` : m.description}
                         </span>
                         <span className="mt-1.5 flex items-center gap-3 text-[10px] text-muted-foreground">
                           <span className="flex items-center gap-1">IQ <Dots value={m.intelligence} /></span>

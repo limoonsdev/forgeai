@@ -16,7 +16,7 @@ export function ShareDialog({ projectId, initial }: { projectId: string; initial
 
   const update = async (body: { enabled: boolean; allowRemix?: boolean; regenerate?: boolean }) => {
     setBusy(true);
-    const res = await fetch(`/api/v1/projects/${projectId}/share`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const res = await fetch(`/api/projects/${projectId}/share`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json();
     setBusy(false);
     if (!res.ok) return toast.error(data?.error?.message ?? "Could not update sharing");

@@ -10,7 +10,14 @@ import {
   primaryKey,
   index,
   uniqueIndex,
+  customType,
 } from "drizzle-orm/pg-core";
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 /* ───────────────────────────── Auth (Better Auth) ───────────────────────────── */
 
@@ -32,6 +39,15 @@ export const user = pgTable("user", {
   planRenewsAt: timestamp("plan_renews_at"),
   role: text("role").notNull().default("user"),
   onboarded: boolean("onboarded").notNull().default(false),
+  username: text("username").unique(),
+  // Moderation
+  strikes: integer("strikes").notNull().default(0),
+  restrictedAt: timestamp("restricted_at"),
+  restrictReason: text("restrict_reason"),
+  bannedAt: timestamp("banned_at"),
+  // Anti-abuse signals captured at sign-up (hashed device id, network)
+  signupIp: text("signup_ip"),
+  signupDevice: text("signup_device"),
 });
 
 export const session = pgTable(
@@ -102,8 +118,8 @@ export const preferences = pgTable("preferences", {
 
 /* ───────────────────────────── Projects ───────────────────────────── */
 
-export type ProjectStatus = "idle" | "running" | "awaiting_input" | "error";
-export type SandboxStatus = "stopped" | "starting" | "running" | "error";
+export type ProjectStatus = "idle" | "running" | "awaiting_input" | "paused" | "error";
+export type SandboxStatus = "stopped" | "queued" | "starting" | "running" | "error";
 
 export const projects = pgTable(
   "projects",
@@ -176,7 +192,7 @@ export const messages = pgTable(
   (t) => [index("messages_project_seq_idx").on(t.projectId, t.seq)],
 );
 
-export type RunStatus = "running" | "completed" | "awaiting_input" | "error" | "stopped" | "insufficient_credits";
+export type RunStatus = "running" | "completed" | "awaiting_input" | "paused" | "error" | "stopped" | "insufficient_credits" | "blocked";
 
 export const runs = pgTable(
   "runs",
@@ -275,24 +291,194 @@ export const skills = pgTable(
   (t) => [uniqueIndex("skills_user_slug_idx").on(t.userId, t.slug)],
 );
 
-/* ───────────────────────────── API keys ───────────────────────────── */
+/* ───────────────────────────── Binary assets & attachments ───────────────────────────── */
 
-export const apiKeys = pgTable(
-  "api_keys",
+/** Binary project files (images, videos, fonts…) — synced into the VM and included in exports. */
+export const projectAssets = pgTable(
+  "project_assets",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    data: bytea("data").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.path] })],
+);
+
+/** Images attached to a chat message (screenshots, Figma frames). */
+export const attachments = pgTable(
+  "attachments",
   {
     id: text("id").primaryKey(),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    prefix: text("prefix").notNull(),
-    keyHash: text("key_hash").notNull().unique(),
-    lastUsedAt: timestamp("last_used_at"),
-    revokedAt: timestamp("revoked_at"),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index("api_keys_user_idx").on(t.userId)],
+  (t) => [index("attachments_project_idx").on(t.projectId)],
 );
+
+/* ───────────────────────────── Deployments ───────────────────────────── */
+
+export type DeploymentStatus = "queued" | "building" | "live" | "failed" | "stopped";
+
+export const deployments = pgTable(
+  "deployments",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .unique()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    subdomain: text("subdomain").notNull().unique(),
+    status: text("status").$type<DeploymentStatus>().notNull().default("queued"),
+    log: text("log").notNull().default(""),
+    lastDeployedAt: timestamp("last_deployed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("deployments_user_idx").on(t.userId)],
+);
+
+/* ───────────────────────────── VM queue ───────────────────────────── */
+
+export const vmQueue = pgTable("vm_queue", {
+  projectId: text("project_id")
+    .primaryKey()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  priority: integer("priority").notNull().default(0),
+  enqueuedAt: timestamp("enqueued_at").notNull().defaultNow(),
+});
+
+/* ───────────────────────────── Connectors & notifications ───────────────────────────── */
+
+export const connectors = pgTable(
+  "connectors",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    connectorId: text("connector_id").notNull(),
+    /** AES-256-GCM encrypted JSON of the connector's secrets. */
+    secrets: text("secrets").notNull(),
+    hint: text("hint").notNull().default(""),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("connectors_user_connector_idx").on(t.userId, t.connectorId)],
+);
+
+export type NotificationChannelType = "discord" | "slack" | "telegram" | "ntfy" | "email";
+
+export const notificationChannels = pgTable(
+  "notification_channels",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    type: text("type").$type<NotificationChannelType>().notNull(),
+    /** Encrypted destination (webhook URL, chat id…). */
+    target: text("target").notNull(),
+    label: text("label").notNull().default(""),
+    enabled: boolean("enabled").notNull().default(true),
+    events: jsonb("events").$type<string[]>().notNull().default(["run_completed", "awaiting_input", "run_failed", "agent_message"]),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("notification_channels_user_idx").on(t.userId)],
+);
+
+/* ───────────────────────────── Sub-agents ───────────────────────────── */
+
+export const agentTasks = pgTable(
+  "agent_tasks",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    toolCallId: text("tool_call_id").notNull(),
+    name: text("name").notNull(),
+    task: text("task").notNull(),
+    status: text("status").$type<"running" | "completed" | "failed" | "stopped">().notNull().default("running"),
+    steps: integer("steps").notNull().default(0),
+    costMicros: bigint("cost_micros", { mode: "number" }).notNull().default(0),
+    summary: text("summary").notNull().default(""),
+    log: jsonb("log").$type<{ t: string; label: string; ok?: boolean }[]>().notNull().default([]),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    finishedAt: timestamp("finished_at"),
+  },
+  (t) => [index("agent_tasks_run_idx").on(t.runId)],
+);
+
+/* ───────────────────────────── Trust & safety ───────────────────────────── */
+
+export const moderationFlags = pgTable(
+  "moderation_flags",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    projectId: text("project_id"),
+    category: text("category").notNull(),
+    excerpt: text("excerpt").notNull(),
+    action: text("action").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("moderation_flags_user_idx").on(t.userId)],
+);
+
+export const abuseReports = pgTable("abuse_reports", {
+  id: text("id").primaryKey(),
+  url: text("url").notNull(),
+  reason: text("reason").notNull(),
+  details: text("details").notNull().default(""),
+  reporterEmail: text("reporter_email"),
+  ip: text("ip"),
+  status: text("status").$type<"open" | "actioned" | "dismissed">().notNull().default("open"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+/** Every sign-up attempt, used for multi-signal rate limiting (IP, subnet, ASN, device). */
+export const signupAttempts = pgTable(
+  "signup_attempts",
+  {
+    id: text("id").primaryKey(),
+    ip: text("ip").notNull(),
+    subnet: text("subnet").notNull(),
+    device: text("device"),
+    asn: text("asn"),
+    emailHash: text("email_hash"),
+    outcome: text("outcome").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("signup_attempts_ip_idx").on(t.ip, t.createdAt), index("signup_attempts_subnet_idx").on(t.subnet, t.createdAt), index("signup_attempts_device_idx").on(t.device, t.createdAt)],
+);
+
+export const ipBans = pgTable("ip_bans", {
+  cidr: text("cidr").primaryKey(),
+  reason: text("reason").notNull().default(""),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
 
 export type User = typeof user.$inferSelect;
 export type Project = typeof projects.$inferSelect;
@@ -301,5 +487,7 @@ export type Message = typeof messages.$inferSelect;
 export type Run = typeof runs.$inferSelect;
 export type Preferences = typeof preferences.$inferSelect;
 export type Skill = typeof skills.$inferSelect;
-export type ApiKey = typeof apiKeys.$inferSelect;
+export type Deployment = typeof deployments.$inferSelect;
+export type Connector = typeof connectors.$inferSelect;
+export type AgentTask = typeof agentTasks.$inferSelect;
 export type CreditTransaction = typeof creditTransactions.$inferSelect;

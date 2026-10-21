@@ -7,18 +7,42 @@ import { deleteFile, FileError, getAllFiles, listFiles, readFile, renameFile, wr
 import { findSkill, getEnabledSkills } from "@/lib/skills";
 import { toolSchemas, type ToolName } from "./tools";
 import type { PollInput, RunEvent, ToolCallPart, ToolResultPart } from "./types";
+import type { ModelInfo } from "./models";
+import { webFetch, webSearch } from "./web";
+import { runSubAgents } from "./subagents";
+import { notifyUser } from "@/lib/server/notifications";
+import { browserAction, auditPage } from "@/lib/sandbox/browser";
+import { generateMedia } from "@/lib/connectors/media";
 
 export type ToolContext = {
   projectId: string;
   userId: string;
   emit: (e: RunEvent) => void;
   signal: AbortSignal;
+  /** Returns an error message when the caller may not write this path (sub-agent file ownership). */
+  guardWrite?: (path: string) => string | null;
+  /** Coordinator-only services. */
+  coordinator?: {
+    runId: string;
+    model: ModelInfo;
+    tokenSaver: boolean;
+    parallelAgents: number;
+    projectName: string;
+  };
 };
 
-type Outcome = { output: string; isError?: boolean; pending?: boolean; meta?: Record<string, unknown> };
+type Outcome = { output: string; isError?: boolean; pending?: boolean; meta?: Record<string, unknown>; images?: { mime: string; data: string }[] };
+
+function guard(ctx: ToolContext, ...paths: string[]): Outcome | null {
+  for (const p of paths) {
+    const msg = ctx.guardWrite?.(p);
+    if (msg) return { output: msg, isError: true };
+  }
+  return null;
+}
 
 const PKG_RE = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*(@[a-z0-9^~.*<>=|\- ]+)?$/i;
-const ALLOWED_COMMANDS = new Set(["npm", "npx", "node", "ls", "cat", "grep", "find", "head", "tail", "wc", "pwd", "echo", "tsc", "sed", "sort", "uniq"]);
+const ALLOWED_COMMANDS = new Set(["npm", "npx", "ls", "cat", "grep", "find", "head", "tail", "wc", "pwd", "echo", "tsc", "sed", "sort", "uniq"]);
 
 function truncate(s: string, max = 12_000) {
   return s.length > max ? `${s.slice(0, max)}\n… [truncated ${s.length - max} characters]` : s;
@@ -29,7 +53,7 @@ function stripAnsi(s: string) {
 }
 
 async function sandboxFor(ctx: ToolContext): Promise<SandboxHandle | null> {
-  return ensureSandbox(ctx.projectId, (e) => ctx.emit({ type: "sandbox", ...e }));
+  return ensureSandbox(ctx.projectId, (e) => ctx.emit({ type: "sandbox", ...e }), ctx.signal);
 }
 
 /** Pulls files created or modified inside the VM by a command back into the database. */
@@ -96,6 +120,8 @@ async function execute(ctx: ToolContext, name: ToolName, input: unknown): Promis
     }
     case "write_file": {
       const { path, content } = toolSchemas.write_file.parse(input);
+      const blocked = guard(ctx, path);
+      if (blocked) return blocked;
       const [saved] = await writeFiles(ctx.projectId, [{ path, content }]);
       ctx.emit({ type: "files_changed", paths: [saved] });
       if (saved === "package.json") {
@@ -106,6 +132,8 @@ async function execute(ctx: ToolContext, name: ToolName, input: unknown): Promis
     }
     case "edit_file": {
       const { path, edits } = toolSchemas.edit_file.parse(input);
+      const blocked = guard(ctx, path);
+      if (blocked) return blocked;
       const current = await readFile(ctx.projectId, path);
       if (current === null) return { output: `File not found: ${path}. Use write_file to create it.`, isError: true };
       let next = current;
@@ -129,12 +157,16 @@ async function execute(ctx: ToolContext, name: ToolName, input: unknown): Promis
     }
     case "delete_file": {
       const { path } = toolSchemas.delete_file.parse(input);
+      const blocked = guard(ctx, path);
+      if (blocked) return blocked;
       const removed = await deleteFile(ctx.projectId, path);
       ctx.emit({ type: "files_changed", paths: [], deleted: [removed] });
       return { output: `Deleted ${removed}.` };
     }
     case "rename_file": {
       const { from, to } = toolSchemas.rename_file.parse(input);
+      const blocked = guard(ctx, from, to);
+      if (blocked) return blocked;
       const r = await renameFile(ctx.projectId, from, to);
       ctx.emit({ type: "files_changed", paths: [r.to], deleted: [r.from] });
       return { output: `Renamed ${r.from} → ${r.to}.` };
@@ -191,6 +223,7 @@ async function execute(ctx: ToolContext, name: ToolName, input: unknown): Promis
         if (!ALLOWED_COMMANDS.has(bin)) return { output: `Command "${bin}" is not allowed. Allowed: ${[...ALLOWED_COMMANDS].join(", ")}.`, isError: true };
       }
       if (/[`$]\(|`|\bsudo\b|\brm\s+-rf\s+\/(\s|$)/.test(command)) return { output: "This command pattern is not allowed.", isError: true };
+      if (/\.env|\/proc\/|printenv|\benv\b|\/etc\/|forged-tools|curl|wget|nc\b/.test(command)) return { output: "Commands may not read environment files or system paths.", isError: true };
       const sbx = await sandboxFor(ctx);
       if (!sbx) return { output: "The project VM is not available on this server.", isError: true };
       const marker = `/tmp/forged-marker-${Date.now()}`;
@@ -267,6 +300,58 @@ async function execute(ctx: ToolContext, name: ToolName, input: unknown): Promis
       }
       return { output: `# Skill: ${skill.name}\n\n${skill.content}` };
     }
+    case "web_search": {
+      const { query } = toolSchemas.web_search.parse(input);
+      const results = await webSearch(query, 6);
+      if (!results.length) return { output: `No results for "${query}".` };
+      return { output: results.map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`).join("\n"), meta: { count: results.length } };
+    }
+    case "web_fetch": {
+      const { url } = toolSchemas.web_fetch.parse(input);
+      const page = await webFetch(url);
+      return { output: `# ${page.title || page.url}\nURL: ${page.url} (HTTP ${page.status})\n\n${page.text}`, meta: { url: page.url } };
+    }
+    case "spawn_agents": {
+      const { agents } = toolSchemas.spawn_agents.parse(input);
+      const c = ctx.coordinator;
+      if (!c) return { output: "Sub-agents cannot spawn other sub-agents.", isError: true };
+      const files = await listFiles(ctx.projectId);
+      const brief = `# Project\n${c.projectName}\n\n# Current files\n${files.map((f) => f.path).join("\n")}\n\n# Team\n${agents.map((a) => `- ${a.name}: ${a.task.slice(0, 160)}`).join("\n")}`;
+      const { report, totalCost } = await runSubAgents(
+        { ...ctx, runId: c.runId, toolCallId: (input as { __toolCallId?: string }).__toolCallId ?? "", model: c.model, tokenSaver: c.tokenSaver, parallel: c.parallelAgents, execute: executeToolCall },
+        agents,
+        brief,
+      );
+      return { output: `Sub-agent reports:\n\n${report}\n\nReview their work (read the files), integrate it, then run check_preview.`, meta: { subagentCostMicros: totalCost } };
+    }
+    case "notify_user": {
+      const { message } = toolSchemas.notify_user.parse(input);
+      const sent = await notifyUser(ctx.userId, "agent_message", { text: message, projectId: ctx.projectId, projectName: ctx.coordinator?.projectName });
+      return { output: sent ? `Notification sent to ${sent} channel(s).` : "The user has no notification channel configured; nothing was sent." };
+    }
+    case "browser": {
+      const args = toolSchemas.browser.parse(input);
+      const sbx = await sandboxFor(ctx);
+      if (!sbx) return { output: "The preview VM is not available.", isError: true };
+      const r = await browserAction(ctx.projectId, sbx, args);
+      ctx.emit({ type: "browser_frame", image: r.image, cursor: r.cursor, action: r.label, url: r.url });
+      return { output: `${r.label}. Page: ${r.url} (title: ${r.title || "untitled"})${r.consoleErrors.length ? `\nConsole errors:\n${r.consoleErrors.join("\n")}` : ""}`, images: [{ mime: "image/jpeg", data: r.image }], meta: { url: r.url } };
+    }
+    case "generate_media": {
+      const args = toolSchemas.generate_media.parse(input);
+      const blocked = guard(ctx, args.path);
+      if (blocked) return blocked;
+      const r = await generateMedia(ctx.userId, ctx.projectId, args, ctx.signal);
+      ctx.emit({ type: "files_changed", paths: [r.path] });
+      return { output: `Saved ${r.kind} to ${r.path} (${Math.round(r.size / 1024)} KB, ${r.mime}). Reference it as ${r.publicUrl}.`, meta: { path: r.path } };
+    }
+    case "audit_page": {
+      const { path } = toolSchemas.audit_page.parse(input);
+      const sbx = await sandboxFor(ctx);
+      if (!sbx) return { output: "The preview VM is not available.", isError: true };
+      const report = await auditPage(ctx.projectId, sbx, path && path.startsWith("/") ? path : "/");
+      return { output: report.text, meta: { scores: report.scores } };
+    }
     case "set_project_info": {
       const { name: projectName, description } = toolSchemas.set_project_info.parse(input);
       const patch: { name?: string; description?: string; updatedAt: Date } = { updatedAt: new Date() };
@@ -296,8 +381,9 @@ export async function executeToolCall(ctx: ToolContext, call: ToolCallPart): Pro
     };
   }
   try {
-    const r = await execute(ctx, name, check.data);
-    return { ...base, output: r.output, isError: r.isError, pending: r.pending, meta: r.meta };
+    const data = name === "spawn_agents" ? { ...(check.data as object), __toolCallId: call.id } : check.data;
+    const r = await execute(ctx, name, data);
+    return { ...base, output: r.output, isError: r.isError, pending: r.pending, meta: r.meta, images: r.images };
   } catch (err) {
     const msg = err instanceof FileError ? err.message : `${name} failed: ${(err as Error).message}`;
     return { ...base, output: msg, isError: true };

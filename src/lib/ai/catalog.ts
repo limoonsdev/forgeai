@@ -7,7 +7,8 @@ export type PublicModel = Pick<
   "id" | "label" | "vendor" | "description" | "contextWindow" | "pricing" | "speed" | "intelligence" | "tags" | "minPlan"
 > & { available: boolean; locked: boolean };
 
-const PLAN_RANK: Record<PlanId, number> = { free: 0, pro: 1, studio: 2 };
+const PLAN_RANK: Record<PlanId, number> = { free: 0, starter: 1, pro: 2, studio: 3 };
+const PLAN_NAME: Record<PlanId, string> = { free: "Free", starter: "Starter", pro: "Pro", studio: "Studio" };
 
 export function isMockEnabled() {
   if (process.env.FORGED_MOCK_AI === "1") return true;
@@ -98,7 +99,7 @@ export async function listModels(plan: PlanId = "free"): Promise<PublicModel[]> 
       tags: m.tags,
       minPlan: m.minPlan,
       available,
-      locked: m.minPlan ? PLAN_RANK[plan] < PLAN_RANK[m.minPlan] : false,
+      locked: m.minPlan ? (PLAN_RANK[plan] ?? 0) < PLAN_RANK[m.minPlan] : false,
     });
   }
   return out;
@@ -106,8 +107,8 @@ export async function listModels(plan: PlanId = "free"): Promise<PublicModel[]> 
 
 export function canUseModel(model: ModelInfo, plan: PlanId) {
   if (!isProviderConfigured(model.provider)) return { ok: false as const, reason: `${model.label} is not configured on this server.` };
-  if (model.minPlan && PLAN_RANK[plan] < PLAN_RANK[model.minPlan])
-    return { ok: false as const, reason: `${model.label} requires the ${model.minPlan === "pro" ? "Pro" : "Studio"} plan.` };
+  if (model.minPlan && (PLAN_RANK[plan] ?? 0) < PLAN_RANK[model.minPlan])
+    return { ok: false as const, reason: `${model.label} requires the ${PLAN_NAME[model.minPlan]} plan.` };
   return { ok: true as const };
 }
 

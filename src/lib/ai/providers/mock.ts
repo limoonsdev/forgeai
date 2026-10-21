@@ -94,10 +94,10 @@ type Step = { text?: string; calls?: { name: string; input: Record<string, unkno
 function planFor(messages: NeutralMessage[]): Step {
   const ui = lastUserIndex(messages);
   const user = messages[ui];
-  const prompt = user?.role === "user" ? user.content.text : "";
+  const prompt = user?.role === "user" && user.content.kind !== "compaction" ? user.content.text : "";
   const after = messages.slice(ui + 1);
   const assistantSteps = after.filter((m) => m.role === "assistant").length;
-  const isFirstTurn = messages.filter((m) => m.role === "user").length === 1;
+  const isFirstTurn = messages.filter((m) => m.role === "user" && m.content.kind !== "compaction").length === 1;
   const wantsPoll = /\?|poll|sondage|ask me/i.test(prompt) && isFirstTurn;
 
   // Find a poll answer if the previous step asked the user something.

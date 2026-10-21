@@ -35,6 +35,7 @@ export function buildTurnContext(input: {
   files: string[];
   skills: SkillDoc[];
   tokenSaver: boolean;
+  connectors?: string[];
 }) {
   const prefs = input.prefs;
   const lines: string[] = ["<forged_context>"];
@@ -54,6 +55,12 @@ export function buildTurnContext(input: {
   if (prefs?.customInstructions?.trim()) {
     lines.push("Custom instructions from the user:");
     lines.push(prefs.customInstructions.trim().slice(0, 4000));
+  }
+  if (input.connectors?.length) {
+    lines.push("Connected services (secrets are available as environment variables in the VM; never print them):");
+    lines.push(...input.connectors);
+  } else {
+    lines.push("Connected services: none. If a feature needs an external API, ask the user to connect it in Settings → Connectors.");
   }
   if (input.skills.length) {
     lines.push("Enabled skills (call load_skill with the name to read one):");

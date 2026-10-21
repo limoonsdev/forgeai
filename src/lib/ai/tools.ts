@@ -36,6 +36,40 @@ export const toolSchemas = {
   }),
   load_skill: z.object({ name: z.string().min(1).max(100) }),
   set_project_info: z.object({ name: z.string().min(1).max(60).optional(), description: z.string().max(300).optional() }),
+  web_search: z.object({ query: z.string().min(2).max(300) }),
+  web_fetch: z.object({ url: z.string().url().max(2000) }),
+  spawn_agents: z.object({
+    agents: z
+      .array(
+        z.object({
+          name: z.string().min(1).max(40),
+          task: z.string().min(10).max(4000),
+          files: z.array(path).max(40).optional(),
+        }),
+      )
+      .min(1)
+      .max(6),
+  }),
+  notify_user: z.object({ message: z.string().min(1).max(1000) }),
+  browser: z.object({
+    action: z.enum(["open", "click", "type", "press", "scroll", "screenshot"]),
+    path: z.string().max(500).optional(),
+    x: z.number().min(0).max(4000).optional(),
+    y: z.number().min(0).max(4000).optional(),
+    text: z.string().max(2000).optional(),
+    key: z.string().max(40).optional(),
+    dy: z.number().min(-5000).max(5000).optional(),
+  }),
+  generate_media: z.object({
+    connector: z.string().min(1).max(40),
+    kind: z.enum(["image", "video", "audio"]),
+    prompt: z.string().min(3).max(4000),
+    path: path,
+    model: z.string().max(120).optional(),
+    aspect_ratio: z.string().max(10).optional(),
+    duration_seconds: z.number().min(1).max(20).optional(),
+  }),
+  audit_page: z.object({ path: z.string().max(500).optional() }),
 } as const;
 
 export type ToolName = keyof typeof toolSchemas;
@@ -143,7 +177,7 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: "run_command",
     description:
-      "Run a shell command in the project VM (working directory is the project root). Allowed: npm, npx, node, ls, cat, grep, find, head, tail, wc, pwd, echo, tsc. Use it for checks such as `npx tsc --noEmit` or scaffolding commands.",
+      "Run a shell command in the project VM (working directory is the project root). Allowed: npm, npx, ls, cat, grep, find, head, tail, wc, pwd, echo, tsc. Use it for checks such as `npx tsc --noEmit` or scaffolding commands.",
     inputSchema: { type: "object", properties: { command: { type: "string" } }, required: ["command"], additionalProperties: false },
   },
   {
@@ -211,6 +245,89 @@ export const TOOLS: ToolDefinition[] = [
     inputSchema: { type: "object", properties: { name: { type: "string" } }, required: ["name"], additionalProperties: false },
   },
   {
+    name: "web_search",
+    description: "Search the web. Returns titles, URLs and snippets. Use for documentation, current library APIs or facts about the user's business.",
+    inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false },
+  },
+  {
+    name: "web_fetch",
+    description: "Read a public web page (or a URL the user pasted) as plain text: title, headings, paragraphs and links.",
+    inputSchema: { type: "object", properties: { url: { type: "string" } }, required: ["url"], additionalProperties: false },
+  },
+  {
+    name: "spawn_agents",
+    description:
+      "Delegate independent pieces of work to sub-agents that run in parallel (each with its own context and file tools, no access to the preview). Give each a clear task and the files it owns; files owned by one agent cannot be written by another. You get a summary from each when they finish. Use for large multi-page builds, not for small edits.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agents: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Short role name, e.g. 'pricing-page'" },
+              task: { type: "string", description: "Self-contained instructions, including design decisions to follow" },
+              files: { type: "array", items: { type: "string" }, description: "Files this agent owns and may create or edit" },
+            },
+            required: ["name", "task"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["agents"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "notify_user",
+    description: "Send a short message to the user's notification channels (Discord, Slack, Telegram, push, email). Use only for things worth interrupting them for.",
+    inputSchema: { type: "object", properties: { message: { type: "string" } }, required: ["message"], additionalProperties: false },
+  },
+  {
+    name: "browser",
+    description:
+      "Control a real browser pointed at the running preview, with a visible cursor the user can watch. Actions: open (path), click (x,y in pixels of the last screenshot), type (text into the focused element), press (key, e.g. Enter), scroll (dy pixels), screenshot. Every action returns a screenshot (1280x800). Use it to check layouts and test interactions.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["open", "click", "type", "press", "scroll", "screenshot"] },
+        path: { type: "string" },
+        x: { type: "number" },
+        y: { type: "number" },
+        text: { type: "string" },
+        key: { type: "string" },
+        dy: { type: "number" },
+      },
+      required: ["action"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "generate_media",
+    description:
+      "Generate an image, video or audio file with one of the user's connected media providers (see the context block) and save it into the project (for example public/media/hero.mp4). Reference it in code as /media/hero.mp4.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        connector: { type: "string", description: "Connected provider id, e.g. fal, replicate, openai, elevenlabs" },
+        kind: { type: "string", enum: ["image", "video", "audio"] },
+        prompt: { type: "string" },
+        path: { type: "string", description: "Destination inside the project, under public/" },
+        model: { type: "string", description: "Optional provider model id" },
+        aspect_ratio: { type: "string", description: "e.g. 16:9, 1:1, 9:16" },
+        duration_seconds: { type: "number" },
+      },
+      required: ["connector", "kind", "prompt", "path"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "audit_page",
+    description: "Run an automated audit (SEO, accessibility, performance, best practices) of a route of the running preview and get the list of issues.",
+    inputSchema: { type: "object", properties: { path: { type: "string" } }, additionalProperties: false },
+  },
+  {
     name: "set_project_info",
     description: "Set the project's display name (2–4 words) and a one-sentence description.",
     inputSchema: {
@@ -255,7 +372,25 @@ export function describeToolCall(name: string, input: Record<string, unknown>): 
       return `Loaded skill ${String(input.name ?? "")}`;
     case "set_project_info":
       return `Named project ${String(input.name ?? "")}`;
+    case "web_search":
+      return `Searched the web for “${String(input.query ?? "")}”`;
+    case "web_fetch":
+      return `Read ${String(input.url ?? "a web page")}`;
+    case "spawn_agents":
+      return `Started ${Array.isArray(input.agents) ? input.agents.length : ""} sub-agents`;
+    case "notify_user":
+      return "Sent you a notification";
+    case "browser":
+      return `Browser: ${String(input.action ?? "")}${input.path ? ` ${String(input.path)}` : ""}`;
+    case "generate_media":
+      return `Generated ${String(input.kind ?? "media")} ${String(input.path ?? "")}`;
+    case "audit_page":
+      return `Audited ${typeof input.path === "string" ? input.path : "/"}`;
     default:
       return name;
   }
 }
+
+/** Tools sub-agents may use (no preview, no polls, no package installs). */
+export const SUBAGENT_TOOL_NAMES = new Set(["list_files", "read_file", "write_file", "edit_file", "delete_file", "search_files", "load_skill", "web_search", "web_fetch"]);
+export const SUBAGENT_TOOLS = TOOLS.filter((t) => SUBAGENT_TOOL_NAMES.has(t.name));

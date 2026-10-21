@@ -252,7 +252,7 @@ export function FeaturesBento() {
           <SpotlightCard className="h-full">
             <CardTitle icon={KeyRoundIcon} title="A complete REST API" body="Create projects, prompt the agent, stream events, read files and drive the VM from your own code or CI." />
             <pre className="mt-5 overflow-x-auto rounded-xl border bg-background/60 p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
-              <span className="text-primary">curl</span> -X POST https://forged.dev/api/v1/projects \{"\n"}  -H <span className="text-emerald-400">&quot;Authorization: Bearer fg_live_…&quot;</span> \{"\n"}  -d <span className="text-amber-300">{`'{"prompt":"A habit tracker"}'`}</span>
+              <span className="text-primary">curl</span> -X POST https://forged.dev/api/projects \{"\n"}  -H <span className="text-emerald-400">&quot;Authorization: Bearer fg_live_…&quot;</span> \{"\n"}  -d <span className="text-amber-300">{`'{"prompt":"A habit tracker"}'`}</span>
             </pre>
           </SpotlightCard>
         </Reveal>

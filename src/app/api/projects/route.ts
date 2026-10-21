@@ -28,7 +28,7 @@ export const POST = withApi(async (req, { auth }) => {
       prompt: body.prompt,
       modelId: body.model,
       tokenSaver: body.tokenSaver,
-      source: auth.via === "api_key" ? "api" : "web",
+      source: "web",
     });
     run = { runId: r.runId, model: r.model };
   }

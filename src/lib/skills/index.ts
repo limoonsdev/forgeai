@@ -78,6 +78,12 @@ export async function createSkill(userId: string, raw: string, source: "paste" |
   return row;
 }
 
+async function connectorSkills(userId: string): Promise<SkillDoc[]> {
+  const { connectorContext } = await import("@/lib/connectors");
+  const { defs } = await connectorContext(userId);
+  return defs.filter((d) => d.skill).map((d) => ({ slug: `connector-${d.id}`, name: `connector-${d.id}`, description: `How to use ${d.name} (connected) in this app.`, content: d.skill, builtin: true }));
+}
+
 export async function getEnabledSkills(userId: string): Promise<SkillDoc[]> {
   const [prefs] = await db.select({ disabled: preferences.disabledSkills }).from(preferences).where(eq(preferences.userId, userId));
   const disabled = new Set(prefs?.disabled ?? []);
@@ -85,7 +91,7 @@ export async function getEnabledSkills(userId: string): Promise<SkillDoc[]> {
     .select({ slug: skills.slug, name: skills.name, description: skills.description, content: skills.content })
     .from(skills)
     .where(and(eq(skills.userId, userId), eq(skills.enabled, true)));
-  return [...BUILTIN_SKILLS.filter((s) => !disabled.has(s.slug)).map((s) => ({ ...s, builtin: true })), ...own];
+  return [...BUILTIN_SKILLS.filter((s) => !disabled.has(s.slug)).map((s) => ({ ...s, builtin: true })), ...(await connectorSkills(userId)), ...own];
 }
 
 export async function findSkill(userId: string, nameOrSlug: string) {

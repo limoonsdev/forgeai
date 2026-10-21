@@ -30,6 +30,8 @@ export type ToolResultPart = {
   pending?: boolean;
   /** UI-only metadata (never sent to the model). */
   meta?: Record<string, unknown>;
+  /** Images returned by a tool (e.g. browser screenshots), base64 encoded. */
+  images?: { mime: string; data: string }[];
 };
 
 export type UserContent = {
@@ -42,6 +44,16 @@ export type UserContent = {
   context?: string;
   /** Hidden from the chat UI (e.g. automatic error-fix follow-ups). */
   hidden?: boolean;
+  /** Images attached by the user (screenshots, Figma frames). */
+  attachments?: { id: string; name: string; mime: string }[];
+};
+
+/** A summary that replaces everything before it when the context gets large. */
+export type CompactionContent = {
+  kind: "compaction";
+  summary: string;
+  compactedMessages: number;
+  reason: "auto" | "manual";
 };
 
 export type AssistantContent = {
@@ -55,10 +67,10 @@ export type ToolContent = {
   results: ToolResultPart[];
 };
 
-export type MessageContent = UserContent | AssistantContent | ToolContent;
+export type MessageContent = UserContent | AssistantContent | ToolContent | CompactionContent;
 
 export type NeutralMessage =
-  | { role: "user"; content: UserContent }
+  | { role: "user"; content: UserContent | CompactionContent }
   | { role: "assistant"; content: AssistantContent; model?: string | null }
   | { role: "tool"; content: ToolContent };
 
@@ -109,6 +121,10 @@ export type RunEvent =
   | { type: "usage"; costMicros: number; runCostMicros: number; balanceMicros: number }
   | { type: "poll"; toolCallId: string; poll: PollInput }
   | { type: "run_end"; status: string; error?: string; runCostMicros: number }
+  | { type: "subagent"; toolCallId: string; taskId: string; name: string; status: string; label?: string; steps?: number; costMicros?: number }
+  | { type: "browser_frame"; image: string; cursor: { x: number; y: number } | null; action: string; url?: string }
+  | { type: "compaction"; summary: string }
+  | { type: "status"; message: string }
   | { type: "ping" };
 
 export type PlanItem = { title: string; status: "pending" | "in_progress" | "done" };

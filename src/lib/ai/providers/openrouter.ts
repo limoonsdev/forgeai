@@ -6,7 +6,7 @@ import type {
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
 import type { AssistantContent, NeutralMessage } from "../types";
-import { normalizeHistory, ProviderError, userTurnText, type ProviderRequest, type ProviderStream } from "./shared";
+import { compactionText, normalizeHistory, ProviderError, userTurnText, type ProviderRequest, type ProviderStream } from "./shared";
 
 let client: OpenAI | null = null;
 function getClient() {
@@ -63,7 +63,20 @@ function toOpenAIMessages(req: ProviderRequest): ChatCompletionMessageParam[] {
   const out: ChatCompletionMessageParam[] = [{ role: "system", content: req.system }];
   for (const msg of history) {
     if (msg.role === "user") {
-      out.push({ role: "user", content: userTurnText(msg.content) });
+      if (msg.content.kind === "compaction") {
+        out.push({ role: "user", content: compactionText(msg.content.summary) });
+        continue;
+      }
+      const images = (msg.content.attachments ?? []).map((a) => req.attachments?.get(a.id)).filter(Boolean) as { mime: string; data: string }[];
+      if (images.length) {
+        out.push({
+          role: "user",
+          content: [
+            { type: "text", text: userTurnText(msg.content) },
+            ...images.map((img) => ({ type: "image_url" as const, image_url: { url: `data:${img.mime};base64,${img.data}` } })),
+          ],
+        });
+      } else out.push({ role: "user", content: userTurnText(msg.content) });
     } else if (msg.role === "assistant") {
       const text = msg.content.parts
         .filter((p) => p.type === "text")
@@ -86,9 +99,21 @@ function toOpenAIMessages(req: ProviderRequest): ChatCompletionMessageParam[] {
           : {}),
       });
     } else {
+      const images: { mime: string; data: string }[] = [];
       for (const r of msg.content.results) {
         if (r.pending) continue;
         out.push({ role: "tool", tool_call_id: r.toolCallId, content: r.isError ? `Error: ${r.output}` : r.output || "(no output)" });
+        images.push(...(r.images ?? []));
+      }
+      // Chat-completions tool messages cannot carry images: send them as a follow-up user message.
+      if (images.length) {
+        out.push({
+          role: "user",
+          content: [
+            { type: "text", text: "Screenshots returned by the tools above:" },
+            ...images.map((img) => ({ type: "image_url" as const, image_url: { url: `data:${img.mime};base64,${img.data}` } })),
+          ],
+        });
       }
     }
   }
@@ -116,11 +141,10 @@ export async function* streamOpenRouter(req: ProviderRequest): ProviderStream {
       {
         model: req.model.apiModel,
         messages: toOpenAIMessages(req),
-        tools: toOpenAITools(req),
-        tool_choice: "auto",
+        ...(req.tools.length ? { tools: toOpenAITools(req), tool_choice: "auto" as const } : {}),
         stream: true,
         stream_options: { include_usage: true },
-        max_tokens: Math.min(req.model.maxOutputTokens, req.tokenSaver ? 16_000 : 32_000),
+        max_tokens: req.maxTokens ?? Math.min(req.model.maxOutputTokens, req.tokenSaver ? 16_000 : 32_000),
         // OpenRouter extension: report the exact USD cost of the call.
         ...({ usage: { include: true } } as Record<string, unknown>),
       },

@@ -143,7 +143,7 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
         if ((err as Error).name !== "AbortError") console.warn("stream interrupted", err);
       } finally {
         // Re-sync with the database (covers dropped connections).
-        const r = await fetch(`/api/v1/projects/${projectId}/messages`).catch(() => null);
+        const r = await fetch(`/api/projects/${projectId}/messages`).catch(() => null);
         if (r?.ok) {
           const data = (await r.json()) as { messages: ChatMessageDTO[]; latestRun: { status: string } | null };
           setMessages(data.messages);
@@ -162,7 +162,7 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
     if (!initial.running) return;
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    fetch(`/api/v1/projects/${projectId}/events`, { signal: ctrl.signal })
+    fetch(`/api/projects/${projectId}/events`, { signal: ctrl.signal })
       .then((res) => (res.ok ? connect(res) : setRunning(false)))
       .catch(() => {});
     return () => ctrl.abort();
@@ -193,7 +193,7 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
       abortRef.current = ctrl;
       let res: Response;
       try {
-        res = await fetch(`/api/v1/projects/${projectId}/messages`, {
+        res = await fetch(`/api/projects/${projectId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
           body: JSON.stringify({ ...body, mode: "stream" }),
@@ -220,7 +220,7 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
   );
 
   const stop = useCallback(async () => {
-    await fetch(`/api/v1/projects/${projectId}/stop`, { method: "POST" }).catch(() => {});
+    await fetch(`/api/projects/${projectId}/stop`, { method: "POST" }).catch(() => {});
   }, [projectId]);
 
   // Results by tool call id (persisted tool messages + live results).

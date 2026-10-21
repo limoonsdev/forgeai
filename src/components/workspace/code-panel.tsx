@@ -154,7 +154,7 @@ export function CodePanel({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const tree = useMemo(() => buildTree(files), [files]);
-  const base = filesBase ?? `/api/v1/projects/${projectId}/files`;
+  const base = filesBase ?? `/api/projects/${projectId}/files`;
   const dirty = content !== original;
 
   const load = useCallback(
@@ -187,7 +187,7 @@ export function CodePanel({
   const save = useCallback(async () => {
     if (!selected || !dirty || readOnly) return;
     setSaving(true);
-    const res = await fetch(`/api/v1/projects/${projectId}/files/${selected.split("/").map(encodeURIComponent).join("/")}`, {
+    const res = await fetch(`/api/projects/${projectId}/files/${selected.split("/").map(encodeURIComponent).join("/")}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content }),
@@ -216,7 +216,7 @@ export function CodePanel({
         <div className="flex items-center justify-between px-3 py-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
           Files
           {!readOnly && (
-            <a href={`/api/v1/projects/${projectId}/export`} className="rounded p-1 hover:bg-accent hover:text-foreground" title="Download as zip">
+            <a href={`/api/projects/${projectId}/export`} className="rounded p-1 hover:bg-accent hover:text-foreground" title="Download as zip">
               <DownloadIcon className="size-3.5" />
             </a>
           )}

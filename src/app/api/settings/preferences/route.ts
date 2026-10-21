@@ -11,7 +11,7 @@ export const GET = withApi(
     const [prefs] = await db.select().from(preferences).where(eq(preferences.userId, auth.userId));
     return json({ preferences: prefs });
   },
-  { sessionOnly: true },
+  {},
 );
 
 const Body = z.object({
@@ -40,5 +40,5 @@ export const PUT = withApi(
       .returning();
     return json({ preferences: prefs });
   },
-  { sessionOnly: true },
+  {},
 );

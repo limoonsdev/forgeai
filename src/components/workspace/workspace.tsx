@@ -61,7 +61,7 @@ export function Workspace(props: WorkspaceProps) {
   }, [selected]);
 
   const refreshFiles = useCallback(async () => {
-    const res = await fetch(`/api/v1/projects/${props.project.id}/files`);
+    const res = await fetch(`/api/projects/${props.project.id}/files`);
     if (res.ok) {
       const data = (await res.json()) as { files: { path: string }[] };
       setFiles(data.files.map((f) => f.path));
@@ -92,7 +92,7 @@ export function Workspace(props: WorkspaceProps) {
   // Keep the VM warm while the workspace is open.
   useEffect(() => {
     if (!props.sandboxAvailable || props.sandbox.status !== "running") return;
-    void fetch(`/api/v1/projects/${props.project.id}/sandbox`, { method: "POST" }).then(async (res) => {
+    void fetch(`/api/projects/${props.project.id}/sandbox`, { method: "POST" }).then(async (res) => {
       if (res.ok) {
         const data = await res.json();
         setSandbox({ status: "running", previewUrl: data.previewUrl });
@@ -102,7 +102,7 @@ export function Workspace(props: WorkspaceProps) {
 
   const startSandbox = async () => {
     setSandbox((s) => ({ ...s, status: "starting", message: "Booting your VM…" }));
-    const res = await fetch(`/api/v1/projects/${props.project.id}/sandbox`, { method: "POST" });
+    const res = await fetch(`/api/projects/${props.project.id}/sandbox`, { method: "POST" });
     const data = await res.json().catch(() => null);
     if (res.ok) {
       setSandbox({ status: "running", previewUrl: data.previewUrl });
@@ -111,7 +111,7 @@ export function Workspace(props: WorkspaceProps) {
   };
 
   const stopSandbox = async () => {
-    await fetch(`/api/v1/projects/${props.project.id}/sandbox`, { method: "DELETE" });
+    await fetch(`/api/projects/${props.project.id}/sandbox`, { method: "DELETE" });
     setSandbox({ status: "stopped", previewUrl: null });
   };
 
@@ -126,16 +126,16 @@ export function Workspace(props: WorkspaceProps) {
   const saveName = async () => {
     setEditingName(false);
     if (!name.trim() || name === props.project.name) return;
-    await fetch(`/api/v1/projects/${props.project.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+    await fetch(`/api/projects/${props.project.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
   };
 
   const persistModel = (id: string) => {
     setModel(id);
-    void fetch(`/api/v1/projects/${props.project.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: id }) });
+    void fetch(`/api/projects/${props.project.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: id }) });
   };
   const persistSaver = (v: boolean) => {
     setTokenSaver(v);
-    void fetch(`/api/v1/projects/${props.project.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tokenSaver: v }) });
+    void fetch(`/api/projects/${props.project.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tokenSaver: v }) });
   };
 
   const openFile = (path: string) => {
@@ -262,7 +262,7 @@ export function Workspace(props: WorkspaceProps) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem asChild>
-                <a href={`/api/v1/projects/${props.project.id}/export`}>
+                <a href={`/api/projects/${props.project.id}/export`}>
                   <DownloadIcon /> Download code (.zip)
                 </a>
               </DropdownMenuItem>
@@ -336,7 +336,7 @@ export function Workspace(props: WorkspaceProps) {
             <Button
               variant="destructive"
               onClick={async () => {
-                const res = await fetch(`/api/v1/projects/${props.project.id}`, { method: "DELETE" });
+                const res = await fetch(`/api/projects/${props.project.id}`, { method: "DELETE" });
                 if (res.ok) {
                   toast.success("Project deleted");
                   router.push("/dashboard");

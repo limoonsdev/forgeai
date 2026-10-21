@@ -51,5 +51,5 @@ export const POST = withApi(
     });
     return json({ url: session.url });
   },
-  { sessionOnly: true },
+  {},
 );

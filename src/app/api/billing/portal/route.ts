@@ -10,5 +10,5 @@ export const POST = withApi(
     const portal = await stripe.billingPortal.sessions.create({ customer, return_url: absoluteUrl("/settings/billing") });
     return json({ url: portal.url });
   },
-  { sessionOnly: true },
+  {},
 );

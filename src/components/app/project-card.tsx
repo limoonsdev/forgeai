@@ -38,7 +38,7 @@ export function ProjectCard({ project }: { project: ProjectDTO }) {
   const model = getModel(project.model);
 
   const patch = async (body: Record<string, unknown>) => {
-    const res = await fetch(`/api/v1/projects/${project.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const res = await fetch(`/api/projects/${project.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!res.ok) toast.error("Could not update the project");
     router.refresh();
   };
@@ -82,7 +82,7 @@ export function ProjectCard({ project }: { project: ProjectDTO }) {
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={async () => {
-                const res = await fetch(`/api/v1/projects/${project.id}/share`, {
+                const res = await fetch(`/api/projects/${project.id}/share`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ enabled: true }),
@@ -98,7 +98,7 @@ export function ProjectCard({ project }: { project: ProjectDTO }) {
               {project.share.enabled ? <CopyIcon /> : <Share2Icon />} {project.share.enabled ? "Copy share link" : "Share session"}
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <a href={`/api/v1/projects/${project.id}/export`}>
+              <a href={`/api/projects/${project.id}/export`}>
                 <DownloadIcon /> Download code
               </a>
             </DropdownMenuItem>
@@ -146,7 +146,7 @@ export function ProjectCard({ project }: { project: ProjectDTO }) {
             <Button
               variant="destructive"
               onClick={async () => {
-                const res = await fetch(`/api/v1/projects/${project.id}`, { method: "DELETE" });
+                const res = await fetch(`/api/projects/${project.id}`, { method: "DELETE" });
                 if (res.ok) toast.success("Project deleted");
                 setConfirmDelete(false);
                 router.refresh();

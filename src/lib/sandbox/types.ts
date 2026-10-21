@@ -6,6 +6,7 @@ export interface SandboxHandle {
   /** Absolute path of the project root inside the VM. */
   root: string;
   writeFiles(files: { path: string; content: string }[]): Promise<void>;
+  writeBinary(files: { path: string; base64: string }[]): Promise<void>;
   deleteFiles(paths: string[]): Promise<void>;
   readFile(path: string): Promise<string | null>;
   exec(command: string, opts?: { timeoutMs?: number }): Promise<ExecResult>;
@@ -17,15 +18,18 @@ export interface SandboxHandle {
   httpGet(path: string, timeoutMs?: number): Promise<{ status: number; body: string }>;
   logs(lines: number): Promise<string>;
   keepAlive(): Promise<void>;
+  /** Kills and restarts the dev server (clears the dev cache). */
+  restart(): Promise<void>;
   stop(): Promise<void>;
 }
 
+export type Capacity = { maxVms: number; running: number; available: boolean; overloaded: boolean; freeMb?: number; load1?: number; cpus?: number };
+
 export interface SandboxProvider {
-  name: "docker" | "e2b";
+  name: "runner" | "e2b";
   create(projectId: string): Promise<SandboxHandle>;
-  connect(id: string): Promise<SandboxHandle | null>;
-  /** Stops VMs idle for longer than `maxIdleMs` (best effort). */
-  reap?(maxIdleMs: number): Promise<void>;
+  connect(projectId: string, id: string): Promise<SandboxHandle | null>;
+  capacity(): Promise<Capacity>;
 }
 
 export const DEV_LOG = "/tmp/forged-next.log";

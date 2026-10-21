@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { projectFiles, projects } from "@/lib/db/schema";
+import { projectAssets, projectFiles, projects } from "@/lib/db/schema";
 import { safeRelativePath, syncToSandbox } from "@/lib/sandbox";
 
 export const MAX_FILE_BYTES = 512 * 1024;
@@ -16,11 +16,50 @@ export function assertPath(p: string) {
 }
 
 export async function listFiles(projectId: string) {
-  return db
+  const text = await db
     .select({ path: projectFiles.path, size: sql<number>`length(${projectFiles.content})`, updatedAt: projectFiles.updatedAt })
     .from(projectFiles)
     .where(eq(projectFiles.projectId, projectId))
     .orderBy(asc(projectFiles.path));
+  const assets = await db
+    .select({ path: projectAssets.path, size: projectAssets.size, updatedAt: projectAssets.updatedAt })
+    .from(projectAssets)
+    .where(eq(projectAssets.projectId, projectId));
+  return [...text.map((f) => ({ ...f, binary: false })), ...assets.map((a) => ({ ...a, binary: true }))].sort((a, b) => a.path.localeCompare(b.path));
+}
+
+export const MAX_ASSET_BYTES = 50 * 1024 * 1024;
+export const MAX_PROJECT_ASSET_BYTES = 200 * 1024 * 1024;
+
+/** Binary files (generated media, imported images) live next to the code and are synced to the VM. */
+export async function writeAsset(projectId: string, path: string, data: Buffer, mime: string) {
+  const safe = assertPath(path);
+  if (data.length > MAX_ASSET_BYTES) throw new FileError(`${safe} is larger than 50 MB.`);
+  const [{ total }] = await db
+    .select({ total: sql<number>`coalesce(sum(${projectAssets.size}), 0)::bigint` })
+    .from(projectAssets)
+    .where(eq(projectAssets.projectId, projectId));
+  if (Number(total) + data.length > MAX_PROJECT_ASSET_BYTES) throw new FileError("Project media storage is full (200 MB).");
+  await db
+    .insert(projectAssets)
+    .values({ projectId, path: safe, data, mime, size: data.length })
+    .onConflictDoUpdate({ target: [projectAssets.projectId, projectAssets.path], set: { data, mime, size: data.length, updatedAt: new Date() } });
+  await touchProject(projectId);
+  await syncToSandbox(projectId, { binary: [{ path: safe, base64: data.toString("base64") }] });
+  return safe;
+}
+
+export async function readAsset(projectId: string, path: string) {
+  const safe = assertPath(path);
+  const [row] = await db
+    .select({ data: projectAssets.data, mime: projectAssets.mime })
+    .from(projectAssets)
+    .where(and(eq(projectAssets.projectId, projectId), eq(projectAssets.path, safe)));
+  return row ?? null;
+}
+
+export async function getAllAssets(projectId: string) {
+  return db.select({ path: projectAssets.path, data: projectAssets.data, mime: projectAssets.mime }).from(projectAssets).where(eq(projectAssets.projectId, projectId));
 }
 
 export async function getAllFiles(projectId: string) {
@@ -75,10 +114,15 @@ export async function writeFile(projectId: string, path: string, content: string
 
 export async function deleteFile(projectId: string, path: string) {
   const safe = assertPath(path);
-  const deleted = await db
+  let deleted = await db
     .delete(projectFiles)
     .where(and(eq(projectFiles.projectId, projectId), eq(projectFiles.path, safe)))
     .returning({ path: projectFiles.path });
+  if (!deleted.length)
+    deleted = await db
+      .delete(projectAssets)
+      .where(and(eq(projectAssets.projectId, projectId), eq(projectAssets.path, safe)))
+      .returning({ path: projectAssets.path });
   if (!deleted.length) throw new FileError(`File not found: ${safe}`);
   await touchProject(projectId);
   await syncToSandbox(projectId, { remove: [safe] });

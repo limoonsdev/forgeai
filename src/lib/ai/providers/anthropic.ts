@@ -7,7 +7,7 @@ import type {
   BetaToolUnion,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import type { AssistantContent, ProviderEvent } from "../types";
-import { normalizeHistory, ProviderError, type ProviderRequest, type ProviderStream } from "./shared";
+import { compactionText, normalizeHistory, ProviderError, type ProviderRequest, type ProviderStream } from "./shared";
 
 let client: Anthropic | null = null;
 function getClient() {
@@ -27,8 +27,16 @@ function toAnthropicMessages(req: ProviderRequest): BetaMessageParam[] {
   for (const msg of normalizeHistory(req.messages)) {
     if (msg.role === "user") {
       const blocks: BetaContentBlockParam[] = [];
-      if (msg.content.context) blocks.push({ type: "text", text: msg.content.context });
-      blocks.push({ type: "text", text: msg.content.text || "(empty message)" });
+      if (msg.content.kind === "compaction") {
+        blocks.push({ type: "text", text: compactionText(msg.content.summary) });
+      } else {
+        if (msg.content.context) blocks.push({ type: "text", text: msg.content.context });
+        for (const a of msg.content.attachments ?? []) {
+          const img = req.attachments?.get(a.id);
+          if (img) blocks.push({ type: "image", source: { type: "base64", media_type: img.mime as "image/png", data: img.data } });
+        }
+        blocks.push({ type: "text", text: msg.content.text || "(see attached images)" });
+      }
       out.push({ role: "user", content: blocks });
     } else if (msg.role === "assistant") {
       const blocks: BetaContentBlockParam[] = [];
@@ -50,7 +58,12 @@ function toAnthropicMessages(req: ProviderRequest): BetaMessageParam[] {
         .map((r) => ({
           type: "tool_result" as const,
           tool_use_id: r.toolCallId,
-          content: r.output || "(no output)",
+          content: r.images?.length
+            ? [
+                { type: "text" as const, text: r.output || "(no output)" },
+                ...r.images.map((img) => ({ type: "image" as const, source: { type: "base64" as const, media_type: img.mime as "image/jpeg", data: img.data } })),
+              ]
+            : r.output || "(no output)",
           ...(r.isError ? { is_error: true } : {}),
         }));
       if (blocks.length) out.push({ role: "user", content: blocks });
@@ -107,11 +120,10 @@ export async function* streamAnthropic(req: ProviderRequest): ProviderStream {
       const stream = getClient().beta.messages.stream(
         {
           model: model.apiModel,
-          max_tokens: req.tokenSaver ? 32_000 : 64_000,
+          max_tokens: req.maxTokens ?? (req.tokenSaver ? 32_000 : 64_000),
           system: req.system,
           messages,
-          tools,
-          tool_choice: { type: "auto" },
+          ...(tools.length ? { tools, tool_choice: { type: "auto" as const } } : {}),
           thinking: { type: "adaptive", display: "summarized" },
           output_config: { effort: req.tokenSaver ? cfg.effort.saver : cfg.effort.normal },
           // Automatic prompt caching of the longest stable prefix.

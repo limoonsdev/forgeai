@@ -6,6 +6,9 @@ type Listener = (e: RunEvent) => void;
 type LiveRun = {
   runId: string;
   projectId: string;
+  userId: string;
+  /** Set when the user (or a server shutdown) asks to pause after the current step. */
+  pauseRequested: boolean;
   abort: AbortController;
   listeners: Set<Listener>;
   /** Events of the step in progress, replayed to clients that (re)connect mid-stream. */
@@ -18,9 +21,9 @@ declare global {
 
 const runs = (globalThis.__forgedRuns ??= new Map<string, LiveRun>());
 
-export function registerRun(projectId: string, runId: string) {
+export function registerRun(projectId: string, runId: string, userId: string) {
   if (runs.has(projectId)) throw new Error("A run is already in progress for this project.");
-  const run: LiveRun = { runId, projectId, abort: new AbortController(), listeners: new Set(), stepBuffer: [] };
+  const run: LiveRun = { runId, projectId, userId, pauseRequested: false, abort: new AbortController(), listeners: new Set(), stepBuffer: [] };
   runs.set(projectId, run);
   return run;
 }
@@ -50,6 +53,31 @@ export function subscribe(projectId: string, listener: Listener, opts: { replay?
   if (opts.replay) for (const e of run.stepBuffer) listener(e);
   run.listeners.add(listener);
   return () => run.listeners.delete(listener);
+}
+
+export function requestPause(projectId: string) {
+  const run = runs.get(projectId);
+  if (!run) return false;
+  run.pauseRequested = true;
+  return true;
+}
+
+export function isPauseRequested(projectId: string) {
+  return runs.get(projectId)?.pauseRequested ?? false;
+}
+
+export function countActiveRuns(userId?: string) {
+  let n = 0;
+  for (const r of runs.values()) if (!userId || r.userId === userId) n++;
+  return n;
+}
+
+/** Graceful shutdown: every run pauses after its current step so users can resume later. */
+export async function pauseAllRuns(timeoutMs: number) {
+  for (const r of runs.values()) r.pauseRequested = true;
+  const deadline = Date.now() + timeoutMs;
+  while (runs.size > 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 250));
+  return runs.size;
 }
 
 export function stopRun(projectId: string) {

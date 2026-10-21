@@ -25,6 +25,10 @@ function handleFor(sbx: Sandbox): SandboxHandle {
       if (!files.length) return;
       await sbx.files.write(files.map((f) => ({ path: `${ROOT}/${f.path}`, data: f.content })));
     },
+    async writeBinary(files) {
+      if (!files.length) return;
+      await sbx.files.write(files.map((f) => ({ path: `${ROOT}/${f.path}`, data: new Uint8Array(Buffer.from(f.base64, "base64")).buffer })));
+    },
     async deleteFiles(paths) {
       await Promise.all(paths.map((p) => sbx.files.remove(`${ROOT}/${p}`).catch(() => {})));
     },
@@ -55,6 +59,11 @@ function handleFor(sbx: Sandbox): SandboxHandle {
     async keepAlive() {
       await sbx.setTimeout(TIMEOUT_MS).catch(() => {});
     },
+    async restart() {
+      await run(sbx, `if [ -f /tmp/forged-next.pid ]; then kill "$(cat /tmp/forged-next.pid)" 2>/dev/null; sleep 1; fi; rm -f /tmp/forged-next.pid; rm -rf ${ROOT}/.next/dev`, 15_000);
+      await run(sbx, devServerScript(ROOT), 15_000);
+      await run(sbx, waitForPortScript(60_000), 65_000);
+    },
     async stop() {
       await sbx.kill().catch(() => {});
     },
@@ -67,7 +76,10 @@ export const e2bProvider: SandboxProvider = {
     const sbx = await Sandbox.create(TEMPLATE, { timeoutMs: TIMEOUT_MS, metadata: { projectId } });
     return handleFor(sbx);
   },
-  async connect(id) {
+  async capacity() {
+    return { maxVms: Number(process.env.FORGED_MAX_VMS || 50), running: 0, available: true, overloaded: false };
+  },
+  async connect(_projectId, id) {
     try {
       const sbx = await Sandbox.connect(id, { timeoutMs: TIMEOUT_MS });
       return handleFor(sbx);

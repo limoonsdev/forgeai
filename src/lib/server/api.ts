@@ -3,10 +3,11 @@ import { ZodError } from "zod";
 import { auth } from "@/lib/auth";
 import { AgentError } from "@/lib/ai/agent";
 import { FileError } from "./files";
-import { verifyApiKey } from "./api-keys";
 import { SkillError } from "@/lib/skills";
+import { rateLimit } from "./rate-limit";
 
-export type ApiAuth = { userId: string; via: "session" | "api_key" };
+/** Forged has no public API: every route is reachable only with a browser session cookie. */
+export type ApiAuth = { userId: string };
 
 export class ApiError extends Error {
   constructor(
@@ -22,36 +23,22 @@ export function json(data: unknown, init: ResponseInit = {}) {
   return Response.json(data, init);
 }
 
-export function errorResponse(status: number, code: string, message: string) {
-  return Response.json({ error: { code, message } }, { status });
-}
-
-/* Simple in-memory rate limiter (per user, per minute). */
-const buckets = new Map<string, { count: number; reset: number }>();
-function rateLimit(key: string, limit: number) {
-  const now = Date.now();
-  const b = buckets.get(key);
-  if (!b || b.reset < now) {
-    buckets.set(key, { count: 1, reset: now + 60_000 });
-    return true;
-  }
-  b.count++;
-  return b.count <= limit;
+export function errorResponse(status: number, code: string, message: string, headers?: HeadersInit) {
+  return Response.json({ error: { code, message } }, { status, headers });
 }
 
 export async function authenticate(req: Request): Promise<ApiAuth | null> {
-  const header = req.headers.get("authorization");
-  if (header?.toLowerCase().startsWith("bearer ")) {
-    const key = header.slice(7).trim();
-    const row = await verifyApiKey(key);
-    return row ? { userId: row.userId, via: "api_key" } : null;
-  }
+  // Bearer tokens are intentionally not supported.
+  if (req.headers.get("authorization")) return null;
   const session = await auth.api.getSession({ headers: req.headers });
-  return session ? { userId: session.user.id, via: "session" } : null;
+  return session ? { userId: session.user.id } : null;
 }
 
-function sameOrigin(req: Request) {
+/** Same-origin check for state-changing requests (defence in depth on top of SameSite=Lax cookies). */
+export function sameOrigin(req: Request) {
   const origin = req.headers.get("origin");
+  const fetchSite = req.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") return false;
   if (!origin) return true;
   try {
     const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
@@ -64,21 +51,17 @@ function sameOrigin(req: Request) {
 type Handler<P> = (req: Request, ctx: { auth: ApiAuth; params: P }) => Promise<Response>;
 
 /**
- * Wraps a route handler with authentication (session cookie or `Authorization: Bearer fg_live_…`),
- * CSRF protection for cookie sessions, rate limiting and uniform JSON errors.
+ * Wraps a route handler with session authentication, CSRF protection,
+ * per-user rate limiting and uniform JSON errors (no stack traces ever leave the server).
  */
-export function withApi<P = Record<string, never>>(
-  handler: Handler<P>,
-  opts: { sessionOnly?: boolean; rateLimit?: number } = {},
-) {
+export function withApi<P = Record<string, never>>(handler: Handler<P>, opts: { rateLimit?: number; bucket?: string } = {}) {
   return async (req: Request, ctx: { params: Promise<P> }) => {
     try {
+      if (req.method !== "GET" && req.method !== "HEAD" && !sameOrigin(req)) return errorResponse(403, "csrf", "Cross-origin request blocked.");
       const a = await authenticate(req);
-      if (!a) return errorResponse(401, "unauthorized", "Sign in or pass a valid API key (Authorization: Bearer fg_live_…).");
-      if (opts.sessionOnly && a.via !== "session") return errorResponse(403, "forbidden", "This endpoint is only available from the web app.");
-      if (a.via === "session" && req.method !== "GET" && !sameOrigin(req)) return errorResponse(403, "csrf", "Cross-origin request blocked.");
-      if (!rateLimit(`${a.userId}:${a.via}`, opts.rateLimit ?? (a.via === "api_key" ? 120 : 600)))
-        return errorResponse(429, "rate_limited", "Too many requests, slow down.");
+      if (!a) return errorResponse(401, "unauthorized", "Please sign in.");
+      const rl = rateLimit(`api:${opts.bucket ?? "default"}:${a.userId}`, opts.rateLimit ?? 300, 60_000);
+      if (!rl.ok) return errorResponse(429, "rate_limited", "Too many requests, slow down a little.", { "Retry-After": String(rl.retryAfter) });
       return await handler(req, { auth: a, params: await ctx.params });
     } catch (err) {
       return handleError(err);
@@ -94,12 +77,27 @@ export function handleError(err: unknown) {
   if (err instanceof ZodError)
     return errorResponse(400, "invalid_request", err.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; "));
   if (err instanceof SyntaxError) return errorResponse(400, "invalid_json", "Request body must be valid JSON.");
-  console.error("[api] unhandled error", err);
+  console.error("[api] unhandled error", err instanceof Error ? `${err.name}: ${err.message}` : err);
   return errorResponse(500, "internal_error", "Something went wrong on our side.");
 }
 
-export async function readJson<T = unknown>(req: Request): Promise<T> {
+export async function readJson<T = unknown>(req: Request, maxBytes = 1_000_000): Promise<T> {
+  const len = Number(req.headers.get("content-length") || 0);
+  if (len > maxBytes) throw new ApiError(413, "too_large", "Request body is too large.");
   const text = await req.text();
+  if (text.length > maxBytes) throw new ApiError(413, "too_large", "Request body is too large.");
   if (!text) return {} as T;
   return JSON.parse(text) as T;
+}
+
+/** Best-effort client IP (trusted reverse proxy sets X-Forwarded-For / X-Real-IP). */
+export function clientIp(req: Request | Headers) {
+  const h = req instanceof Headers ? req : req.headers;
+  const cf = h.get("cf-connecting-ip");
+  if (cf) return cf.trim();
+  const real = h.get("x-real-ip");
+  if (real) return real.trim();
+  const fwd = h.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0].trim();
+  return "0.0.0.0";
 }
