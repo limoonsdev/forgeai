@@ -10,9 +10,9 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/dashboard", label: "Projects" },
+  { href: "/templates", label: "Templates" },
+  { href: "/settings/connectors", label: "Connectors" },
   { href: "/settings/skills", label: "Skills" },
-  { href: "/settings/billing", label: "Credits" },
-  { href: "/docs", label: "API" },
 ];
 
 export function AppHeader({ user, credits }: { user: { name: string; email: string; image?: string | null; plan: string }; credits: number }) {

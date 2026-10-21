@@ -1,8 +1,10 @@
 "use client";
 
-import { CheckIcon, ChevronDownIcon, LockIcon, SparklesIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, LockIcon } from "lucide-react";
 import type { PublicModel } from "@/lib/ai/catalog";
-import { vendorColor } from "@/lib/ai/models";
+import { vendorLogo } from "@/lib/ai/models";
+import { BrandLogo } from "@/components/brand/brand-logo";
+import { LogoMark } from "@/components/brand/logo";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -15,6 +17,11 @@ function Dots({ value }: { value: number }) {
       ))}
     </span>
   );
+}
+
+export function VendorMark({ vendor, className }: { vendor: PublicModel["vendor"]; className?: string }) {
+  if (vendor === "Forged") return <LogoMark className={cn("shrink-0", className)} />;
+  return <BrandLogo id={vendorLogo(vendor)} title={vendor} className={className} />;
 }
 
 export function ModelPicker({
@@ -42,7 +49,7 @@ export function ModelPicker({
           className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border bg-background/40 px-2.5 py-1.5 text-xs font-medium transition hover:bg-accent"
           data-testid="model-picker"
         >
-          <SparklesIcon className="size-3.5 shrink-0 text-primary" />
+          {current && <VendorMark vendor={current.vendor} className="size-3.5" />}
           <span className="truncate">{current ? (compact ? current.label.replace(/^Claude /, "") : current.label) : "Select model"}</span>
           <ChevronDownIcon className="size-3.5 shrink-0 opacity-60" />
         </button>
@@ -51,7 +58,7 @@ export function ModelPicker({
         <div className="max-h-[420px] overflow-y-auto scrollbar-thin">
           {vendors.map((v) => (
             <div key={v} className="mb-1">
-              <div className="px-2 pt-2 pb-1 text-[10px] font-medium tracking-wider text-muted-foreground uppercase">{v}</div>
+              <div className="px-2 pt-2 pb-1 font-mono text-[10px] font-medium tracking-wider text-muted-foreground uppercase">{v}</div>
               {models
                 .filter((m) => m.vendor === v)
                 .map((m) => {
@@ -71,7 +78,7 @@ export function ModelPicker({
                         m.id === value && "bg-accent",
                       )}
                     >
-                      <span className="mt-1.5 size-2 shrink-0 rounded-full" style={{ background: vendorColor(m.vendor) }} />
+                      <VendorMark vendor={m.vendor} className="mt-0.5 size-4" />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5 text-sm font-medium">
                           {m.label}

@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCardIcon, GiftIcon, KeyRoundIcon, PuzzleIcon, SlidersHorizontalIcon, UserIcon } from "lucide-react";
+import { BellIcon, CableIcon, CreditCardIcon, GiftIcon, PaletteIcon, PuzzleIcon, SlidersHorizontalIcon, UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
-  { href: "/settings/preferences", label: "Preferences", icon: SlidersHorizontalIcon },
-  { href: "/settings/billing", label: "Credits & billing", icon: CreditCardIcon },
-  { href: "/settings/referrals", label: "Referrals", icon: GiftIcon },
-  { href: "/settings/skills", label: "Skills", icon: PuzzleIcon },
-  { href: "/settings/api-keys", label: "API keys", icon: KeyRoundIcon },
   { href: "/settings/account", label: "Account", icon: UserIcon },
+  { href: "/settings/preferences", label: "Agent preferences", icon: SlidersHorizontalIcon },
+  { href: "/settings/appearance", label: "Appearance", icon: PaletteIcon },
+  { href: "/settings/billing", label: "Plan & credits", icon: CreditCardIcon },
+  { href: "/settings/connectors", label: "Connectors", icon: CableIcon },
+  { href: "/settings/notifications", label: "Notifications", icon: BellIcon },
+  { href: "/settings/skills", label: "Skills", icon: PuzzleIcon },
+  { href: "/settings/referrals", label: "Referrals", icon: GiftIcon },
 ];
 
 export function SettingsNav() {
