@@ -28,26 +28,51 @@ export async function ensureReferralCode(userId: string): Promise<string> {
 }
 
 /**
- * Runs once for every new account (Better Auth database hook).
- * Grants the sign-up bonus, creates preferences, a referral code, and links the referrer if any.
+ * Runs once for every new account (Better Auth database hook): preferences, referral code,
+ * referral link. Free credits are NOT granted here; see decideBonuses (after email verification).
  */
 export async function onUserCreated(userId: string, referralCode?: string | null) {
   await db.insert(preferences).values({ userId }).onConflictDoNothing();
   await ensureReferralCode(userId);
+  if (referralCode) await attachReferral(userId, referralCode).catch((err) => console.error("[referral] attach failed", err));
+}
+
+const BONUS_REFUSED: Record<string, string> = {
+  device_already_rewarded: "Free credits were already given to another account on this device.",
+  hosting_network: "Free credits aren't available for accounts created through a VPN or hosting network.",
+  subnet_quota: "Free credits were already given to several accounts on this network.",
+  email_already_rewarded: "Free credits were already given to an earlier account with this email.",
+};
+
+export function bonusRefusalMessage(status: string | null) {
+  return status && status !== "granted" ? (BONUS_REFUSED[status] ?? null) : null;
+}
+
+/**
+ * Grants the welcome and referral credits exactly once, after the email address is verified
+ * and only if the anti-abuse checks pass. Safe to call many times.
+ */
+export async function decideBonuses(userId: string) {
+  const { bonusEligibility } = await import("./abuse/signup-guard");
+  const verdict = await bonusEligibility(userId);
+  if (!verdict.eligible && verdict.reason === "unverified") return { granted: false as const, reason: "unverified" };
+  const status = verdict.eligible ? "granted" : verdict.reason;
+  const [claimed] = await db
+    .update(user)
+    .set({ bonusDecidedAt: new Date(), bonusStatus: status })
+    .where(and(eq(user.id, userId), sql`${user.bonusDecidedAt} is null`))
+    .returning({ id: user.id });
+  if (!claimed) return { granted: false as const, reason: "already_decided" };
+  if (!verdict.eligible) return { granted: false as const, reason: verdict.reason };
 
   if (CREDITS.signupBonusMicros > 0) {
-    await grantCredits({
-      userId,
-      amountMicros: CREDITS.signupBonusMicros,
-      type: "signup_bonus",
-      description: "Welcome to Forged.dev 🔥",
-      reference: `signup:${userId}`,
-    });
+    await grantCredits({ userId, amountMicros: CREDITS.signupBonusMicros, type: "signup_bonus", description: "Welcome credits", reference: `signup:${userId}` });
   }
-
-  if (referralCode) {
-    await attachReferral(userId, referralCode).catch((err) => console.error("[referral] attach failed", err));
+  const [ref] = await db.select().from(referrals).where(eq(referrals.refereeId, userId));
+  if (ref && CREDITS.refereeRewardMicros > 0) {
+    await grantCredits({ userId, amountMicros: CREDITS.refereeRewardMicros, type: "referee_bonus", description: "Referral welcome credits", reference: `referee:${ref.id}` });
   }
+  return { granted: true as const };
 }
 
 export async function attachReferral(refereeId: string, code: string) {
@@ -65,31 +90,33 @@ export async function attachReferral(refereeId: string, code: string) {
   if (!inserted.length) return;
 
   await db.update(user).set({ referredBy: referrer.id }).where(eq(user.id, refereeId));
-  if (CREDITS.refereeRewardMicros > 0) {
-    await grantCredits({
-      userId: refereeId,
-      amountMicros: CREDITS.refereeRewardMicros,
-      type: "referee_bonus",
-      description: "Referral welcome credits",
-      reference: `referee:${id}`,
-    });
-  }
 }
 
 /** Called after a user's successful agent run. Rewards the referrer exactly once. */
 export async function maybeRewardReferrer(refereeId: string) {
+  // Only real, distinct people count: the friend must have passed the free-credit checks and
+  // must not share a device or network with the referrer.
+  const [referee] = await db.select({ status: user.bonusStatus, device: user.signupDevice, fp: user.signupFp, ip: user.signupIp, referrer: user.referredBy }).from(user).where(eq(user.id, refereeId));
+  if (!referee?.referrer || referee.status !== "granted") return;
+  const [referrer] = await db.select({ device: user.signupDevice, fp: user.signupFp, ip: user.signupIp }).from(user).where(eq(user.id, referee.referrer));
+  const same = (a: string | null, b: string | null) => Boolean(a && b && a === b);
+  const net = (ip: string | null) => ip?.split(".").slice(0, 3).join(".") ?? null;
+  if (referrer && (same(referee.device, referrer.device) || same(referee.fp, referrer.fp) || same(net(referee.ip), net(referrer.ip)))) {
+    await db.update(referrals).set({ status: "rewarded", rewardMicros: 0, rewardedAt: new Date() }).where(eq(referrals.refereeId, refereeId));
+    return;
+  }
   const [pending] = await db
     .update(referrals)
     .set({ status: "rewarded", rewardedAt: new Date() })
     .where(and(eq(referrals.refereeId, refereeId), eq(referrals.status, "pending")))
     .returning();
   if (!pending) return;
-  const [referee] = await db.select({ name: user.name }).from(user).where(eq(user.id, refereeId));
+  const [named] = await db.select({ name: user.name }).from(user).where(eq(user.id, refereeId));
   await grantCredits({
     userId: pending.referrerId,
     amountMicros: pending.rewardMicros,
     type: "referral_bonus",
-    description: `Referral reward: ${referee?.name ?? "a friend"} finished their first build`,
+    description: `Referral reward: ${named?.name ?? "a friend"} finished their first build`,
     reference: `referral:${pending.id}`,
   });
 }

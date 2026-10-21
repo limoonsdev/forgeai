@@ -48,6 +48,15 @@ export const user = pgTable("user", {
   // Anti-abuse signals captured at sign-up (hashed device id, network)
   signupIp: text("signup_ip"),
   signupDevice: text("signup_device"),
+  signupFp: text("signup_fp"),
+  /** Hash of the canonical mailbox (gmail dots and +tags removed), to stop alias farming. */
+  emailKey: text("email_key").unique(),
+  signupAsn: text("signup_asn"),
+  signupHosting: boolean("signup_hosting").notNull().default(false),
+  /** Set once the welcome/referral credits were granted or refused, so it is decided only once. */
+  bonusDecidedAt: timestamp("bonus_decided_at"),
+  /** "granted" or the reason free credits were refused (shown to the user). */
+  bonusStatus: text("bonus_status"),
 });
 
 export const session = pgTable(
@@ -465,12 +474,24 @@ export const signupAttempts = pgTable(
     ip: text("ip").notNull(),
     subnet: text("subnet").notNull(),
     device: text("device"),
+    fp: text("fp"),
+    hw: text("hw"),
     asn: text("asn"),
+    hosting: boolean("hosting").notNull().default(false),
     emailHash: text("email_hash"),
+    method: text("method").notNull().default("email"),
     outcome: text("outcome").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index("signup_attempts_ip_idx").on(t.ip, t.createdAt), index("signup_attempts_subnet_idx").on(t.subnet, t.createdAt), index("signup_attempts_device_idx").on(t.device, t.createdAt)],
+  (t) => [
+    index("signup_attempts_ip_idx").on(t.ip, t.createdAt),
+    index("signup_attempts_subnet_idx").on(t.subnet, t.createdAt),
+    index("signup_attempts_device_idx").on(t.device, t.createdAt),
+    index("signup_attempts_fp_idx").on(t.fp, t.createdAt),
+    index("signup_attempts_asn_idx").on(t.asn, t.createdAt),
+    index("signup_attempts_email_idx").on(t.emailHash),
+    index("signup_attempts_created_idx").on(t.createdAt),
+  ],
 );
 
 export const ipBans = pgTable("ip_bans", {

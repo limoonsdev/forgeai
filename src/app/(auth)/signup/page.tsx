@@ -5,6 +5,7 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { SignupForm } from "@/components/auth/auth-forms";
 import { enabledSocialProviders } from "@/lib/auth";
 import { REF_COOKIE } from "@/lib/config";
+import { emailConfigured } from "@/lib/server/email";
 
 export const metadata: Metadata = { title: "Sign up" };
 
@@ -17,7 +18,7 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
   const prompt = typeof sp.prompt === "string" ? sp.prompt : undefined;
   return (
     <AuthShell
-      title="Start forging"
+      title="Create your account"
       subtitle={
         <>
           Already have an account?{" "}
@@ -27,7 +28,7 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
         </>
       }
     >
-      <SignupForm providers={enabledSocialProviders} next={next} prompt={prompt} saver={sp.saver === "1"} referralCode={referral} />
+      <SignupForm providers={enabledSocialProviders} next={next} prompt={prompt} saver={sp.saver === "1"} referralCode={referral} verificationRequired={emailConfigured()} />
     </AuthShell>
   );
 }

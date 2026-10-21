@@ -143,7 +143,7 @@ const server = http.createServer(async (req, res) => {
       const m = req.url.match(re);
       if (!m) continue;
       if (m[1] && /^\/sandboxes\//.test(req.url) && !PROJECT_ID_RE.test(m[1])) return sendJson(res, 400, { error: "invalid project id" });
-      const body = method === "GET" || method === "DELETE" ? {} : await readBody(req);
+      const body = method === "GET" || method === "DELETE" ? {} : await readBody(req, /^\/deployments\//.test(req.url) ? 320 * 1024 * 1024 : undefined);
       return sendJson(res, 200, await handler(m, body));
     }
     sendJson(res, 404, { error: "not found" });

@@ -23,7 +23,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         </>
       }
     >
-      <LoginForm providers={enabledSocialProviders} next={next} prompt={prompt} saver={sp.saver === "1"} />
+      <LoginForm providers={enabledSocialProviders} next={next} prompt={prompt} saver={sp.saver === "1"} error={typeof sp.error === "string" ? sp.error.slice(0, 200) : undefined} />
     </AuthShell>
   );
 }
