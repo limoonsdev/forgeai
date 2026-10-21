@@ -207,6 +207,28 @@ export function getModel(id: string | null | undefined): ModelInfo | undefined {
   return MODELS.find((m) => m.id === id);
 }
 
+/** Key into BRAND_LOGOS (src/components/brand/brand-logos.ts). */
+export function vendorLogo(vendor: ModelInfo["vendor"]) {
+  switch (vendor) {
+    case "Anthropic":
+      return "claude";
+    case "OpenAI":
+      return "openai";
+    case "Google":
+      return "gemini";
+    case "xAI":
+      return "grok";
+    case "DeepSeek":
+      return "deepseek";
+    case "Qwen":
+      return "qwen";
+    case "Moonshot":
+      return "kimi";
+    default:
+      return null;
+  }
+}
+
 export function vendorColor(vendor: ModelInfo["vendor"]) {
   switch (vendor) {
     case "Anthropic":

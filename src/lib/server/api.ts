@@ -91,13 +91,17 @@ export async function readJson<T = unknown>(req: Request, maxBytes = 1_000_000):
 }
 
 /** Best-effort client IP (trusted reverse proxy sets X-Forwarded-For / X-Real-IP). */
+/**
+ * The visitor's IP. In production the app only listens on localhost behind Caddy, which overwrites
+ * X-Real-IP with the real client address (resolving Cloudflare's header only from Cloudflare IPs).
+ * Client-supplied forwarding headers are therefore never trusted directly.
+ */
 export function clientIp(req: Request | Headers) {
   const h = req instanceof Headers ? req : req.headers;
-  const cf = h.get("cf-connecting-ip");
-  if (cf) return cf.trim();
   const real = h.get("x-real-ip");
   if (real) return real.trim();
+  // Fallback for other proxies: the right-most entry is the one added by the closest proxy.
   const fwd = h.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim();
+  if (fwd) return fwd.split(",").at(-1)!.trim();
   return "0.0.0.0";
 }

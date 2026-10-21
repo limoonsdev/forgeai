@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookOpenIcon, CreditCardIcon, GiftIcon, KeyRoundIcon, LogOutIcon, MoonIcon, PuzzleIcon, SettingsIcon, SunIcon, UserIcon } from "lucide-react";
+import { CableIcon, CreditCardIcon, GiftIcon, LogOutIcon, MoonIcon, PaletteIcon, PuzzleIcon, SettingsIcon, SunIcon, UserIcon } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useTheme } from "@/components/theme-provider";
 import { Avatar } from "@/components/ui/avatar";
@@ -34,17 +34,17 @@ export function UserMenu({ user }: { user: { name: string; email: string; image?
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/settings/preferences">
-            <SettingsIcon /> Preferences
+            <SettingsIcon /> Agent preferences
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings/billing">
-            <CreditCardIcon /> Credits & billing
+            <CreditCardIcon /> Plan & credits
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings/referrals">
-            <GiftIcon /> Invite friends · get $5
+            <GiftIcon /> Invite a friend, get $5
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
@@ -53,18 +53,18 @@ export function UserMenu({ user }: { user: { name: string; email: string; image?
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/settings/api-keys">
-            <KeyRoundIcon /> API keys
+          <Link href="/settings/connectors">
+            <CableIcon /> Connectors
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/settings/appearance">
+            <PaletteIcon /> Appearance
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings/account">
             <UserIcon /> Account
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/docs">
-            <BookOpenIcon /> API docs
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

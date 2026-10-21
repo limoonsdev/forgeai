@@ -3,56 +3,67 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ───────────────────────── Forged design tokens ───────────────────────── */
+/* ───────────────────────── Forged design tokens ─────────────────────────
+   Brand = molten metal: hot (red-orange) → brand (orange) → glow (amber).
+   The appearance customizer overrides --brand / --brand-hot / --brand-glow / --brand-fg on <html>. */
 :root {
-  --radius: 0.75rem;
+  --radius: 0.7rem;
+  --brand: #ff6b1a;
+  --brand-hot: #f0421c;
+  --brand-glow: #ffb23f;
+  --brand-fg: #1a0a03;
+  --ui-scale: 100%;
 
-  /* light theme (opt-in) */
-  --background: oklch(0.99 0.003 60);
-  --foreground: oklch(0.18 0.01 40);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.01 40);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.01 40);
-  --primary: oklch(0.68 0.2 42);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.96 0.006 60);
-  --secondary-foreground: oklch(0.22 0.01 40);
-  --muted: oklch(0.96 0.006 60);
-  --muted-foreground: oklch(0.5 0.015 45);
-  --accent: oklch(0.95 0.02 60);
-  --accent-foreground: oklch(0.22 0.01 40);
-  --destructive: oklch(0.6 0.22 25);
-  --border: oklch(0.91 0.008 60);
-  --input: oklch(0.91 0.008 60);
-  --ring: oklch(0.68 0.2 42);
-  --ember: oklch(0.7 0.2 45);
-  --ember-glow: oklch(0.82 0.16 70);
-  --surface: oklch(0.975 0.004 60);
+  /* light theme */
+  --background: #fbf8f5;
+  --foreground: #1b1411;
+  --card: #ffffff;
+  --card-foreground: #1b1411;
+  --popover: #ffffff;
+  --popover-foreground: #1b1411;
+  --primary: color-mix(in oklch, var(--brand) 76%, black);
+  --primary-foreground: #ffffff;
+  --secondary: #f2ede8;
+  --secondary-foreground: #2a201b;
+  --muted: #f2ede8;
+  --muted-foreground: #6b5d55;
+  --accent: #f1e9e2;
+  --accent-foreground: #2a201b;
+  --destructive: #c8321f;
+  --success: #15803d;
+  --border: #e7dfd8;
+  --input: #ded5cd;
+  --ring: color-mix(in oklch, var(--brand) 76%, black);
+  --ember: color-mix(in oklch, var(--brand) 80%, black);
+  --ember-glow: var(--brand-glow);
+  --surface: #f7f3ef;
+  --iron: #2b211d;
 }
 
 .dark {
-  --background: oklch(0.13 0.006 40);
-  --foreground: oklch(0.97 0.004 70);
-  --card: oklch(0.165 0.007 40);
-  --card-foreground: oklch(0.97 0.004 70);
-  --popover: oklch(0.17 0.007 40);
-  --popover-foreground: oklch(0.97 0.004 70);
-  --primary: oklch(0.7 0.2 45);
-  --primary-foreground: oklch(0.14 0.01 40);
-  --secondary: oklch(0.21 0.008 40);
-  --secondary-foreground: oklch(0.95 0.004 70);
-  --muted: oklch(0.21 0.008 40);
-  --muted-foreground: oklch(0.68 0.012 60);
-  --accent: oklch(0.24 0.012 45);
-  --accent-foreground: oklch(0.97 0.004 70);
-  --destructive: oklch(0.62 0.21 25);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.7 0.2 45);
-  --ember: oklch(0.72 0.2 45);
-  --ember-glow: oklch(0.84 0.16 72);
-  --surface: oklch(0.155 0.007 40);
+  --background: #0d0a09;
+  --foreground: #f6f1ec;
+  --card: #151110;
+  --card-foreground: #f6f1ec;
+  --popover: #181312;
+  --popover-foreground: #f6f1ec;
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-fg);
+  --secondary: #201a18;
+  --secondary-foreground: #f1ebe6;
+  --muted: #1e1816;
+  --muted-foreground: #a69790;
+  --accent: #251d1a;
+  --accent-foreground: #f6f1ec;
+  --destructive: #f05a46;
+  --success: #4ade80;
+  --border: rgb(255 240 230 / 0.085);
+  --input: rgb(255 240 230 / 0.12);
+  --ring: var(--brand);
+  --ember: var(--brand);
+  --ember-glow: var(--brand-glow);
+  --surface: #110e0d;
+  --iron: #1c1614;
 }
 
 @theme inline {
@@ -71,20 +82,25 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ember: var(--ember);
   --color-ember-glow: var(--ember-glow);
+  --color-brand: var(--brand);
+  --color-brand-hot: var(--brand-hot);
+  --color-brand-glow: var(--brand-glow);
   --color-surface: var(--surface);
+  --color-iron: var(--iron);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   --animate-marquee: marquee 40s linear infinite;
   --animate-shimmer: shimmer 2.4s linear infinite;
@@ -120,18 +136,50 @@
   html:not(.dark) {
     color-scheme: light;
   }
+  html {
+    font-size: var(--ui-scale);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "ss01", "cv11";
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-motion="reduced"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
   ::selection {
-    background: color-mix(in oklch, var(--ember) 35%, transparent);
+    background: color-mix(in oklch, var(--brand) 38%, transparent);
   }
 }
 
 @layer utilities {
+  /* Expanded Archivo for headlines: the industrial, stamped-metal voice of the brand. */
+  .font-display {
+    font-family: var(--font-display);
+    font-variation-settings: "wdth" 118;
+    letter-spacing: -0.025em;
+  }
+  .font-wide {
+    font-variation-settings: "wdth" 125;
+  }
   .text-gradient-ember {
-    background: linear-gradient(100deg, #ff4d26 0%, #ff7a1a 35%, #ffb347 70%, #ffd27a 100%);
+    background: linear-gradient(100deg, var(--brand-hot) 0%, var(--brand) 40%, var(--brand-glow) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -143,7 +191,33 @@
     color: transparent;
   }
   .bg-ember {
-    background: linear-gradient(135deg, #ff4d26 0%, #ff7a1a 50%, #ffb347 100%);
+    background: linear-gradient(135deg, var(--brand-hot) 0%, var(--brand) 50%, var(--brand-glow) 100%);
+  }
+  /* Primary call to action: a bar of hot metal (lit from above, darker at the base). */
+  .btn-molten {
+    color: var(--brand-fg);
+    background:
+      linear-gradient(180deg, color-mix(in oklch, var(--brand-glow) 55%, var(--brand)) 0%, var(--brand) 46%, var(--brand-hot) 100%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.38),
+      inset 0 -1px 0 rgb(0 0 0 / 0.18),
+      0 1px 2px rgb(0 0 0 / 0.25),
+      0 8px 28px -10px color-mix(in oklch, var(--brand) 85%, transparent);
+    transition: box-shadow 0.2s ease, filter 0.2s ease, transform 0.12s ease;
+  }
+  .btn-molten:hover {
+    filter: brightness(1.06) saturate(1.05);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.45),
+      inset 0 -1px 0 rgb(0 0 0 / 0.18),
+      0 1px 2px rgb(0 0 0 / 0.25),
+      0 12px 40px -10px color-mix(in oklch, var(--brand) 95%, transparent);
+  }
+  .btn-molten:active {
+    transform: translateY(0.5px);
+  }
+  .heat-line {
+    background: linear-gradient(90deg, transparent, var(--brand-hot) 20%, var(--brand) 50%, var(--brand-glow) 80%, transparent);
   }
   .bg-grid {
     background-image:
@@ -196,9 +270,37 @@
 .prose-forge a { @apply text-primary underline underline-offset-2; }
 .prose-forge code:not(pre code) { @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.82em]; }
 .prose-forge pre { @apply my-3 overflow-x-auto rounded-lg border bg-surface p-3 font-mono text-xs; }
+.prose-forge strong { @apply font-semibold text-foreground; }
 .prose-forge blockquote { @apply border-l-2 border-primary/50 pl-3 text-muted-foreground; }
 .prose-forge table { @apply my-3 w-full text-sm; }
 .prose-forge th, .prose-forge td { @apply border px-2 py-1 text-left; }
 
 :root { --anvil-mid: #4a2f27; --anvil-bottom: #2b1f1c; }
 .dark { --anvil-mid: #6a4334; --anvil-bottom: #3d2b25; }
+
+
+/* Rich prompt input: links in blue with the site's favicon in front (pseudo-element, not text). */
+.prompt-link {
+  color: #4f9dff;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, #4f9dff 40%, transparent);
+  text-underline-offset: 3px;
+}
+html:not(.dark) .prompt-link {
+  color: #1d63d8;
+}
+.prompt-link::before {
+  content: "";
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.3em;
+  vertical-align: -0.16em;
+  border-radius: 3px;
+  background: var(--favicon) center / contain no-repeat;
+  user-select: none;
+  pointer-events: none;
+}
+.prompt-rich:empty::before {
+  content: "\200b";
+}

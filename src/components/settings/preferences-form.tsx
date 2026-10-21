@@ -4,7 +4,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { LoaderCircleIcon, SaveIcon } from "lucide-react";
 import type { PublicModel } from "@/lib/ai/catalog";
-import { useTheme, type Theme } from "@/components/theme-provider";
 import { ModelPicker } from "@/components/shared/model-picker";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -49,7 +48,6 @@ export function PreferencesForm({ initial, models }: { initial: PrefsValue; mode
   const [v, setV] = useState(initial);
   const [saved, setSaved] = useState(initial);
   const [saving, setSaving] = useState(false);
-  const { theme, setTheme } = useTheme();
   const set = <K extends keyof PrefsValue>(k: K, val: PrefsValue[K]) => setV((s) => ({ ...s, [k]: val }));
   const dirty = JSON.stringify(v) !== JSON.stringify(saved);
 
@@ -122,20 +120,8 @@ export function PreferencesForm({ initial, models }: { initial: PrefsValue; mode
         <p className="mt-2 text-right text-xs text-muted-foreground">{v.customInstructions.length}/4000</p>
       </SettingsSection>
 
-      <SettingsSection title="Interface">
+      <SettingsSection title="Email">
         <div className="divide-y">
-          <Row label="Theme">
-            <Select value={theme} onValueChange={(x) => setTheme(x as Theme)}>
-              <SelectTrigger className="w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="dark">Dark</SelectItem>
-                <SelectItem value="light">Light</SelectItem>
-                <SelectItem value="system">System</SelectItem>
-              </SelectContent>
-            </Select>
-          </Row>
           <Row label="Email notifications" hint="Product updates and important account emails.">
             <Switch checked={v.emailNotifications} onCheckedChange={(c) => set("emailNotifications", c)} />
           </Row>
