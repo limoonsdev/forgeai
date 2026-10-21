@@ -68,8 +68,8 @@ ${e.brand} only uses cookies and browser storage that are needed for the Service
 ## Cookies
 | Name | Purpose | Duration |
 | --- | --- | --- |
-| \`better-auth.session_token\` | keeps you signed in | 7 days, renewed while you use the Service |
-| \`better-auth.session_data\` | short cache of your session to make pages faster | 5 minutes |
+| \`__Host-forged.session_token\` | keeps you signed in | 7 days, renewed while you use the Service |
+| \`__Host-forged.session_data\` | short cache of your session to make pages faster | 5 minutes |
 | \`forged_ref\` | remembers the referral link you followed so your friend gets credit | 30 days |
 | \`forged_did\` | random device identifier used to stop automated and repeated sign-ups | 12 months |
 
@@ -91,8 +91,8 @@ ${e.brand} n'utilise que des cookies et un stockage local nécessaires au foncti
 ## Cookies
 | Nom | Finalité | Durée |
 | --- | --- | --- |
-| \`better-auth.session_token\` | maintient votre connexion | 7 jours, renouvelés tant que vous utilisez le Service |
-| \`better-auth.session_data\` | cache court de votre session pour accélérer les pages | 5 minutes |
+| \`__Host-forged.session_token\` | maintient votre connexion | 7 jours, renouvelés tant que vous utilisez le Service |
+| \`__Host-forged.session_data\` | cache court de votre session pour accélérer les pages | 5 minutes |
 | \`forged_ref\` | mémorise le lien de parrainage suivi pour créditer votre ami | 30 jours |
 | \`forged_did\` | identifiant d'appareil aléatoire servant à bloquer les inscriptions automatisées ou répétées | 12 mois |
 

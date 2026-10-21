@@ -70,6 +70,15 @@ export const enabledSocialProviders = Object.keys(socialProviders) as SocialProv
 
 const verificationOn = emailConfigured();
 
+/**
+ * Session cookies use the __Host- prefix in production: browsers then refuse any version of them
+ * set with a Domain attribute, so a published app on a subdomain (user-app.forged.dev) can't plant
+ * or overwrite the session cookie of the main site ("cookie tossing").
+ */
+const secureSite = appUrl.startsWith("https://");
+export const SESSION_COOKIE = secureSite ? "__Host-forged.session_token" : "forged.session_token";
+const cookieName = (n: string) => (secureSite ? `__Host-forged.${n}` : `forged.${n}`);
+
 export const auth = betterAuth({
   appName: "Forged.dev",
   baseURL: appUrl,
@@ -137,7 +146,16 @@ export const auth = betterAuth({
   },
   advanced: {
     ipAddress: { ipAddressHeaders: ["x-real-ip"] },
-    useSecureCookies: appUrl.startsWith("https://"),
+    // The __Host- prefix (stronger than __Secure-) is applied through the cookie names below.
+    useSecureCookies: false,
+    cookiePrefix: "forged",
+    defaultCookieAttributes: { secure: secureSite, sameSite: "lax", path: "/" },
+    cookies: {
+      session_token: { name: SESSION_COOKIE },
+      session_data: { name: cookieName("session_data") },
+      account_data: { name: cookieName("account_data") },
+      dont_remember: { name: cookieName("dont_remember") },
+    },
   },
   rateLimit: {
     enabled: process.env.NODE_ENV === "production" || process.env.FORGED_ENFORCE_SIGNUP_LIMITS === "1",

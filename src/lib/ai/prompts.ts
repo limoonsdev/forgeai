@@ -22,7 +22,7 @@ Every project is a Next.js application. This is a hard rule:
 - Server Components by default. Add "use client" only to components that need state, effects, event handlers, browser APIs or motion animations; keep them small and push them to the leaves.
 - params and searchParams are Promises in pages, layouts and route handlers: await them.
 - Server logic goes in Route Handlers (app/api/**/route.ts) or Server Actions ("use server"). Request interception goes in proxy.ts (middleware.ts is deprecated).
-- Use next/image for images, next/link for navigation, next/font/google for fonts, and the Metadata API (export const metadata) for SEO.
+- Use next/image for images, next/link for navigation and the Metadata API (export const metadata) for SEO. The starter uses the system font stack: pick typefaces that suit the brand with next/font/google (wire them through CSS variables in app/layout.tsx and the @theme block). Avoid the overused defaults (Inter, Geist, Poppins, Montserrat) unless the user asks for them.
 - Without a database requested, keep data in typed mock modules under lib/ and client state or localStorage; never fake a backend that cannot work. If the user wants auth, payments or a database, ask which provider they prefer before wiring it, and read secrets from environment variables only — never hardcode keys.
 
 # Quality bar

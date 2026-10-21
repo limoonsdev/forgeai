@@ -54,12 +54,15 @@ setInterval(() => {
   if (cache.size > 5000) cache.clear();
 }, 30_000).unref();
 
+/**
+ * Visitor IP. The gateway only listens on localhost behind Caddy, which sets X-Real-IP to the real
+ * client address (resolving Cloudflare's header only for Cloudflare's own IP ranges).
+ */
 function clientIp(req) {
-  if (TRUST_CF && req.headers["cf-connecting-ip"]) return String(req.headers["cf-connecting-ip"]);
   const remote = req.socket.remoteAddress ?? "";
-  if ((remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1") && req.headers["x-forwarded-for"]) {
-    return String(req.headers["x-forwarded-for"]).split(",")[0].trim();
-  }
+  const local = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1";
+  if (local && req.headers["x-real-ip"]) return String(req.headers["x-real-ip"]).trim();
+  if (local && TRUST_CF && req.headers["cf-connecting-ip"]) return String(req.headers["cf-connecting-ip"]).trim();
   return remote;
 }
 
@@ -71,7 +74,9 @@ function page(res, status, title, body) {
   res.end(html);
 }
 
-const BADGE = `<a href="${APP_URL}/?ref=badge" target="_blank" rel="noopener" style="position:fixed;right:12px;bottom:12px;z-index:2147483647;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#141110;color:#f3ede6;font:600 12px/1 -apple-system,Segoe UI,Roboto,sans-serif;text-decoration:none;box-shadow:0 4px 20px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1)"><span style="width:8px;height:8px;border-radius:2px;background:#f2541b;display:inline-block"></span>Built with Forged</a>`;
+/** Small fixed badge on published apps: credit plus a one-click abuse report (DSA notice-and-action). */
+const badge = (host) =>
+  `<div style="position:fixed;right:12px;bottom:12px;z-index:2147483647;display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#141110;color:#f3ede6;font:600 12px/1 -apple-system,Segoe UI,Roboto,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1)"><a href="${APP_URL}/?ref=badge" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;color:inherit;text-decoration:none"><span style="width:8px;height:8px;border-radius:2px;background:#ff6b1a;display:inline-block"></span>Built with Forged</a><a href="${APP_URL}/report?url=${encodeURIComponent(`https://${host}`)}" target="_blank" rel="noopener nofollow" style="color:#a39a91;font-weight:500;text-decoration:none" title="Report this app">Report</a></div>`;
 
 /** Previews talk to `next dev`, which only trusts localhost origins for its dev endpoints (HMR). */
 function rewriteForPreview(headers) {
@@ -89,6 +94,7 @@ function rewriteForPreview(headers) {
 }
 
 function proxy(req, res, target) {
+  const host = String(req.headers.host ?? "").toLowerCase().split(":")[0];
   let headers = { ...req.headers, "x-forwarded-host": req.headers.host, "x-forwarded-proto": "https" };
   if (target.kind === "preview") headers = rewriteForPreview(headers);
   if (target.kind === "deploy") headers["accept-encoding"] = "identity";
@@ -101,14 +107,10 @@ function proxy(req, res, target) {
     const type = String(up.headers["content-type"] ?? "");
     if (target.kind === "deploy" && type.includes("text/html") && !up.headers["content-encoding"] && req.method === "GET") {
       const chunks = [];
-      let size = 0;
-      up.on("data", (c) => {
-        size += c.length;
-        if (size < 8 * 1024 * 1024) chunks.push(c);
-      });
+      up.on("data", (c) => chunks.push(c));
       up.on("end", () => {
         let body = Buffer.concat(chunks).toString("utf8");
-        body = body.includes("</body>") ? body.replace(/<\/body>(?![\s\S]*<\/body>)/, `${BADGE}</body>`) : body + BADGE;
+        body = body.includes("</body>") ? body.replace(/<\/body>(?![\s\S]*<\/body>)/, `${badge(host)}</body>`) : body + badge(host);
         delete out["content-length"];
         delete out["transfer-encoding"];
         out["content-length"] = String(Buffer.byteLength(body));

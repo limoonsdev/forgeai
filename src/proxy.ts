@@ -1,13 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getSessionCookie } from "better-auth/cookies";
 
 const PROTECTED = ["/dashboard", "/project", "/settings"];
 const AUTH_PAGES = ["/login", "/signup"];
 const REF_COOKIE = "forged_ref";
+// Mirrors SESSION_COOKIE in lib/auth.ts (the proxy can't import server-only modules).
+const SESSION_COOKIES = ["__Host-forged.session_token", "forged.session_token"];
 
 export function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
-  const hasSession = Boolean(getSessionCookie(request));
+  // Only a hint for redirects: every page and route still validates the session on the server.
+  const hasSession = SESSION_COOKIES.some((n) => request.cookies.has(n));
 
   let response: NextResponse;
   if (PROTECTED.some((p) => pathname === p || pathname.startsWith(`${p}/`)) && !hasSession) {
