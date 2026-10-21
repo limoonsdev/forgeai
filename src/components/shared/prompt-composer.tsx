@@ -9,6 +9,7 @@ import { ModelPicker } from "./model-picker";
 import { RichInput, type RichInputHandle } from "@/components/prompt/rich-input";
 import { EnhanceButton } from "@/components/prompt/enhance-button";
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { FigmaDialog } from "@/components/prompt/figma-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -43,7 +44,6 @@ type Props = {
   pickerSide?: "top" | "bottom";
   signedIn?: boolean;
   projectId?: string;
-  onFigmaImport?: () => void;
   submitLabel?: string;
 };
 
@@ -53,10 +53,12 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
   const fileInput = useRef<HTMLInputElement>(null);
   const [atts, setAtts] = useState<ComposerAttachment[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [figmaOpen, setFigmaOpen] = useState(false);
   const signedIn = props.signedIn ?? true;
   useImperativeHandle(ref, () => ({ focus: () => input.current?.focus() }));
 
-  useEffect(() => () => atts.forEach((a) => URL.revokeObjectURL(a.previewUrl)), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const revoke = (url: string) => url.startsWith("blob:") && URL.revokeObjectURL(url);
+  useEffect(() => () => atts.forEach((a) => revoke(a.previewUrl)), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const uploading = atts.some((a) => a.uploading);
   const canSend = (props.value.trim().length > 0 || atts.some((a) => a.id)) && !props.disabled && !props.running && !uploading;
@@ -100,7 +102,7 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
     const ids = atts.flatMap((a) => (a.id ? [a.id] : []));
     const result = await props.onSubmit(ids);
     if (result !== false) {
-      atts.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+      atts.forEach((a) => revoke(a.previewUrl));
       setAtts([]);
     }
   };
@@ -139,7 +141,7 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
               <button
                 type="button"
                 onClick={() => {
-                  URL.revokeObjectURL(a.previewUrl);
+                  revoke(a.previewUrl);
                   setAtts((s) => s.filter((x) => x.key !== a.key));
                 }}
                 className="absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full bg-background/90 opacity-0 shadow transition group-hover:opacity-100 focus-visible:opacity-100"
@@ -151,6 +153,16 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
           ))}
         </div>
       )}
+
+      <FigmaDialog
+        open={figmaOpen}
+        onOpenChange={setFigmaOpen}
+        projectId={props.projectId}
+        onImported={(r) => {
+          setAtts((s) => [...s, ...r.attachments.slice(0, MAX_ATTACHMENTS - s.length).map((a) => ({ key: a.id, id: a.id, name: a.name, previewUrl: `/api/attachments/${a.id}`, uploading: false }))]);
+          props.onChange(props.value.trim() ? `${props.value.trim()}\n\n${r.brief}` : r.brief);
+        }}
+      />
 
       <RichInput
         ref={input}
@@ -191,7 +203,7 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
               <DropdownMenuItem onSelect={() => (signedIn ? fileInput.current?.click() : router.push("/signup"))}>
                 <ImageIcon /> Images or screenshots
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => (signedIn ? (props.onFigmaImport ? props.onFigmaImport() : router.push("/settings/connectors#figma")) : router.push("/signup"))}>
+              <DropdownMenuItem onSelect={() => (signedIn ? setFigmaOpen(true) : router.push("/signup"))}>
                 <BrandLogo id="figma" /> Figma frame
               </DropdownMenuItem>
             </DropdownMenuContent>

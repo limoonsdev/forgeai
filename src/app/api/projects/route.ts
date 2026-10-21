@@ -20,7 +20,8 @@ const CreateBody = z.object({
 
 export const POST = withApi(
   async (req, { auth }) => {
-    const body = CreateBody.parse(await readJson(req));
+    const parsed = CreateBody.parse(await readJson(req));
+    const body = { ...parsed, model: parsed.model || undefined };
     const project = await createProject(auth.userId, body);
     let run: { runId: string; model: string } | null = null;
     if (body.prompt?.trim() || body.attachments?.length) {

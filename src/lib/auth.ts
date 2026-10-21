@@ -84,6 +84,8 @@ export const auth = betterAuth({
   baseURL: appUrl,
   secret: process.env.BETTER_AUTH_SECRET,
   trustedOrigins: [appUrl, "https://appleid.apple.com"],
+  // OAuth access tokens stay on the server: the browser can't ask for them.
+  disabledPaths: ["/get-access-token", "/refresh-token", "/account-info"],
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: { user: schema.user, session: schema.session, account: schema.account, verification: schema.verification },

@@ -28,12 +28,14 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { LogoMark } from "@/components/brand/logo";
+import { BrandLogo } from "@/components/brand/brand-logo";
 import { cn, formatCredits } from "@/lib/utils";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { AgentBrowser } from "./agent-browser";
 import { AuditSheet, type AuditReportDTO } from "./audit-sheet";
 import { ChatMessages } from "./chat";
 import { CodePanel } from "./code-panel";
+import { GitHubDialog } from "./github-dialog";
 import { PublishDialog } from "./publish-dialog";
 import { PlanCard } from "./plan-card";
 import { PreviewPanel } from "./preview-panel";
@@ -78,6 +80,17 @@ export function Workspace(props: WorkspaceProps) {
   const [auditing, setAuditing] = useState(false);
   const [agentView, setAgentView] = useState(false);
   const dismissedAgentView = useRef(false);
+  const [githubOpen, setGithubOpen] = useState(false);
+
+  // Coming back from the GitHub authorization screen: reopen the GitHub dialog.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("github") === "1") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the return URL
+      setGithubOpen(true);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
   const composer = useRef<ComposerHandle>(null);
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const selectedRef = useRef(selected);
@@ -389,6 +402,9 @@ export function Workspace(props: WorkspaceProps) {
                   <DownloadIcon /> Download code (.zip)
                 </a>
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setGithubOpen(true)}>
+                <BrandLogo id="github" /> Push to GitHub…
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void agent.compact()} disabled={agent.running || agent.messages.length < 4}>
                 <FoldVerticalIcon /> Compact conversation
               </DropdownMenuItem>
@@ -453,6 +469,8 @@ export function Workspace(props: WorkspaceProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <GitHubDialog projectId={props.project.id} projectName={name} open={githubOpen} onOpenChange={setGithubOpen} />
 
       <AuditSheet
         report={audit}

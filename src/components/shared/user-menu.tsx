@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CableIcon, CreditCardIcon, GiftIcon, LogOutIcon, MoonIcon, PaletteIcon, PuzzleIcon, SettingsIcon, SunIcon, UserIcon } from "lucide-react";
+import { CableIcon, CreditCardIcon, ShieldIcon, GiftIcon, LogOutIcon, MoonIcon, PaletteIcon, PuzzleIcon, SettingsIcon, SunIcon, UserIcon } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useTheme } from "@/components/theme-provider";
 import { Avatar } from "@/components/ui/avatar";
@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function UserMenu({ user }: { user: { name: string; email: string; image?: string | null; plan: string } }) {
+export function UserMenu({ user }: { user: { name: string; email: string; image?: string | null; plan: string; isAdmin?: boolean } }) {
   const router = useRouter();
   const { resolved, setTheme } = useTheme();
   return (
@@ -67,6 +67,13 @@ export function UserMenu({ user }: { user: { name: string; email: string; image?
             <UserIcon /> Account
           </Link>
         </DropdownMenuItem>
+        {user.isAdmin && (
+          <DropdownMenuItem asChild>
+            <Link href="/admin">
+              <ShieldIcon /> Admin
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => setTheme(resolved === "dark" ? "light" : "dark")}>
           {resolved === "dark" ? <SunIcon /> : <MoonIcon />} {resolved === "dark" ? "Light mode" : "Dark mode"}

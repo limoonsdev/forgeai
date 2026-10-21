@@ -10,6 +10,10 @@ import { listProjects, serializeProject } from "@/lib/server/projects";
 import { requireUser } from "@/lib/server/session";
 import { NewProject } from "@/components/app/new-project";
 import { ProjectCard } from "@/components/app/project-card";
+import { ImportGitHub } from "@/components/app/import-github";
+import Link from "next/link";
+import { LayoutTemplateIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -34,9 +38,18 @@ export default async function DashboardPage() {
       </section>
 
       <section>
-        <div className="mb-4 flex items-end justify-between">
-          <h2 className="text-lg font-semibold">Your projects</h2>
-          <span className="text-sm text-muted-foreground">{projects.length} total</span>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <h2 className="mr-auto font-display text-lg font-bold">
+            Your projects <span className="ml-1 font-sans text-sm font-normal text-muted-foreground">{projects.length}</span>
+          </h2>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/templates">
+              <LayoutTemplateIcon /> Templates
+            </Link>
+          </Button>
+          <Suspense>
+            <ImportGitHub />
+          </Suspense>
         </div>
         {projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-20 text-center">

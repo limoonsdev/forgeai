@@ -15,7 +15,7 @@ const NAV = [
   { href: "/settings/skills", label: "Skills" },
 ];
 
-export function AppHeader({ user, credits }: { user: { name: string; email: string; image?: string | null; plan: string }; credits: number }) {
+export function AppHeader({ user, credits }: { user: { name: string; email: string; image?: string | null; plan: string; isAdmin?: boolean }; credits: number }) {
   const pathname = usePathname();
   return (
     <header className="glass sticky top-0 z-40 border-b">

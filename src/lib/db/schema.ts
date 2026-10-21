@@ -152,6 +152,10 @@ export const projects = pgTable(
     sandboxId: text("sandbox_id"),
     sandboxStatus: text("sandbox_status").$type<SandboxStatus>().notNull().default("stopped"),
     previewUrl: text("preview_url"),
+    /** Linked GitHub repository ("owner/name") for push/import. */
+    githubRepo: text("github_repo"),
+    githubBranch: text("github_branch"),
+    githubPushedAt: timestamp("github_pushed_at"),
     sandboxLastActiveAt: timestamp("sandbox_last_active_at"),
     // Stats
     totalCostMicros: bigint("total_cost_micros", { mode: "number" }).notNull().default(0),
