@@ -1,0 +1,204 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ───────────────────────── Forged design tokens ───────────────────────── */
+:root {
+  --radius: 0.75rem;
+
+  /* light theme (opt-in) */
+  --background: oklch(0.99 0.003 60);
+  --foreground: oklch(0.18 0.01 40);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.01 40);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.01 40);
+  --primary: oklch(0.68 0.2 42);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0.006 60);
+  --secondary-foreground: oklch(0.22 0.01 40);
+  --muted: oklch(0.96 0.006 60);
+  --muted-foreground: oklch(0.5 0.015 45);
+  --accent: oklch(0.95 0.02 60);
+  --accent-foreground: oklch(0.22 0.01 40);
+  --destructive: oklch(0.6 0.22 25);
+  --border: oklch(0.91 0.008 60);
+  --input: oklch(0.91 0.008 60);
+  --ring: oklch(0.68 0.2 42);
+  --ember: oklch(0.7 0.2 45);
+  --ember-glow: oklch(0.82 0.16 70);
+  --surface: oklch(0.975 0.004 60);
+}
+
+.dark {
+  --background: oklch(0.13 0.006 40);
+  --foreground: oklch(0.97 0.004 70);
+  --card: oklch(0.165 0.007 40);
+  --card-foreground: oklch(0.97 0.004 70);
+  --popover: oklch(0.17 0.007 40);
+  --popover-foreground: oklch(0.97 0.004 70);
+  --primary: oklch(0.7 0.2 45);
+  --primary-foreground: oklch(0.14 0.01 40);
+  --secondary: oklch(0.21 0.008 40);
+  --secondary-foreground: oklch(0.95 0.004 70);
+  --muted: oklch(0.21 0.008 40);
+  --muted-foreground: oklch(0.68 0.012 60);
+  --accent: oklch(0.24 0.012 45);
+  --accent-foreground: oklch(0.97 0.004 70);
+  --destructive: oklch(0.62 0.21 25);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.7 0.2 45);
+  --ember: oklch(0.72 0.2 45);
+  --ember-glow: oklch(0.84 0.16 72);
+  --surface: oklch(0.155 0.007 40);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ember: var(--ember);
+  --color-ember-glow: var(--ember-glow);
+  --color-surface: var(--surface);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
+
+  --animate-marquee: marquee 40s linear infinite;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-glow: glow 3s ease-in-out infinite;
+  --animate-spin-slow: spin 14s linear infinite;
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes glow {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    color-scheme: dark;
+  }
+  html:not(.dark) {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--ember) 35%, transparent);
+  }
+}
+
+@layer utilities {
+  .text-gradient-ember {
+    background: linear-gradient(100deg, #ff4d26 0%, #ff7a1a 35%, #ffb347 70%, #ffd27a 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .text-gradient-fade {
+    background: linear-gradient(180deg, var(--foreground) 30%, color-mix(in oklch, var(--foreground) 45%, transparent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .bg-ember {
+    background: linear-gradient(135deg, #ff4d26 0%, #ff7a1a 50%, #ffb347 100%);
+  }
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, color-mix(in oklch, var(--foreground) 6%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklch, var(--foreground) 6%, transparent) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+  .bg-dots {
+    background-image: radial-gradient(color-mix(in oklch, var(--foreground) 14%, transparent) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+  .mask-fade-b {
+    mask-image: linear-gradient(to bottom, black 55%, transparent);
+  }
+  .mask-fade-x {
+    mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
+  }
+  .mask-radial {
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 72%);
+  }
+  .glass {
+    background: color-mix(in oklch, var(--card) 72%, transparent);
+    backdrop-filter: blur(16px) saturate(140%);
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 18%, transparent) transparent;
+  }
+  .shimmer-text {
+    background: linear-gradient(90deg, var(--muted-foreground) 0%, var(--foreground) 50%, var(--muted-foreground) 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: var(--animate-shimmer);
+  }
+}
+
+/* Markdown rendering inside the chat */
+.prose-forge {
+  @apply text-[0.925rem] leading-relaxed;
+}
+.prose-forge p { @apply my-2; }
+.prose-forge ul { @apply my-2 list-disc pl-5; }
+.prose-forge ol { @apply my-2 list-decimal pl-5; }
+.prose-forge li { @apply my-0.5; }
+.prose-forge h1, .prose-forge h2, .prose-forge h3 { @apply mt-4 mb-2 font-semibold; }
+.prose-forge h1 { @apply text-lg; }
+.prose-forge h2 { @apply text-base; }
+.prose-forge a { @apply text-primary underline underline-offset-2; }
+.prose-forge code:not(pre code) { @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.82em]; }
+.prose-forge pre { @apply my-3 overflow-x-auto rounded-lg border bg-surface p-3 font-mono text-xs; }
+.prose-forge blockquote { @apply border-l-2 border-primary/50 pl-3 text-muted-foreground; }
+.prose-forge table { @apply my-3 w-full text-sm; }
+.prose-forge th, .prose-forge td { @apply border px-2 py-1 text-left; }
+
+:root { --anvil-mid: #4a2f27; --anvil-bottom: #2b1f1c; }
+.dark { --anvil-mid: #6a4334; --anvil-bottom: #3d2b25; }
