@@ -33,7 +33,7 @@ const DEV_PID = "/tmp/forged-next.pid";
 
 /** Starts `next dev` in the background unless it is already running (tracked with a pid file). */
 export function devServerScript(root: string) {
-  return `if [ -f ${DEV_PID} ] && kill -0 "$(cat ${DEV_PID})" 2>/dev/null; then echo up; else cd ${root} && NEXT_TELEMETRY_DISABLED=1 nohup npx next dev -H 0.0.0.0 -p 3000 > ${DEV_LOG} 2>&1 < /dev/null & echo $! > ${DEV_PID}; echo started; fi`;
+  return `if [ -f ${DEV_PID} ] && kill -0 "$(cat ${DEV_PID})" 2>/dev/null && ! grep -q "^State:.*Z" "/proc/$(cat ${DEV_PID})/status" 2>/dev/null; then echo up; else cd ${root} && NEXT_TELEMETRY_DISABLED=1 nohup npx next dev -H 0.0.0.0 -p 3000 > ${DEV_LOG} 2>&1 < /dev/null & echo $! > ${DEV_PID}; echo started; fi`;
 }
 
 /** Paths are confined to the project root — never absolute, never escaping with "..". */

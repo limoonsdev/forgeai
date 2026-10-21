@@ -149,7 +149,9 @@ export function Hero({ signedIn }: { signedIn: boolean }) {
                   </button>
                   <span className="inline-flex items-center gap-1.5 rounded-lg border bg-background/40 px-2.5 py-1.5 text-xs font-medium">
                     <SparklesIcon className="size-3.5 text-primary" />
-                    Claude Sonnet 5.5
+                    <span className="whitespace-nowrap">
+                      <span className="hidden sm:inline">Claude </span>Sonnet 5.5
+                    </span>
                   </span>
                   <button
                     type="button"
@@ -167,7 +169,7 @@ export function Hero({ signedIn }: { signedIn: boolean }) {
                 <button
                   type="button"
                   onClick={() => submit()}
-                  className="group inline-flex h-10 items-center gap-2 rounded-xl bg-ember pr-3 pl-4 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(255,106,26,0.9)] transition hover:brightness-110"
+                  className="group inline-flex h-10 shrink-0 items-center gap-2 rounded-xl bg-ember pr-3 pl-4 whitespace-nowrap text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(255,106,26,0.9)] transition hover:brightness-110"
                 >
                   Forge it
                   <span className="flex size-6 items-center justify-center rounded-lg bg-white/20 transition group-hover:-translate-y-0.5">

@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { LogoMark } from "@/components/brand/logo";
 import { cn, formatCredits } from "@/lib/utils";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { ChatMessages } from "./chat";
 import { CodePanel } from "./code-panel";
 import { PlanCard } from "./plan-card";
@@ -53,6 +54,7 @@ export function Workspace(props: WorkspaceProps) {
   const [outOfCredits, setOutOfCredits] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const composer = useRef<ComposerHandle>(null);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   const selectedRef = useRef(selected);
   useEffect(() => {
     selectedRef.current = selected;
@@ -203,7 +205,7 @@ export function Workspace(props: WorkspaceProps) {
         </span>
       </div>
       <div className="min-h-0 flex-1">
-        {(tab === "preview" && mobileView !== "code") || mobileView === "preview" ? (
+        {(isDesktop ? tab === "preview" : mobileView === "preview") ? (
           <PreviewPanel
             sandbox={sandbox}
             available={props.sandboxAvailable}
@@ -287,7 +289,7 @@ export function Workspace(props: WorkspaceProps) {
       </div>
 
       <div className="min-h-0 flex-1">
-        <div className="hidden h-full md:block">
+        {isDesktop ? (
           <Group orientation="horizontal" className="h-full">
             <Panel defaultSize="36" minSize={340} className="min-w-0">
               {chatPanel}
@@ -297,8 +299,9 @@ export function Workspace(props: WorkspaceProps) {
               {rightPanel}
             </Panel>
           </Group>
-        </div>
-        <div className="h-full md:hidden">{mobileView === "chat" ? chatPanel : rightPanel}</div>
+        ) : (
+          <div className="h-full">{mobileView === "chat" ? chatPanel : rightPanel}</div>
+        )}
       </div>
 
       <Dialog open={outOfCredits} onOpenChange={setOutOfCredits}>

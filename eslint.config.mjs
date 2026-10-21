@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "drizzle/**",
     "playwright-report/**",
     "test-results/**",
+    "public/monaco/**",
   ]),
 ]);
 

@@ -1,0 +1,38 @@
+# Local infrastructure for Forged.dev.
+#   docker compose up -d postgres         → database only (run the app with `npm run dev`)
+#   docker compose --profile app up -d    → database + the Forged app (production build)
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: forged
+      POSTGRES_PASSWORD: forged
+      POSTGRES_DB: forged
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forged"]
+      interval: 5s
+      retries: 10
+
+  app:
+    profiles: ["app"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://forged:forged@postgres:5432/forged
+    ports:
+      - "3000:3000"
+    volumes:
+      # The app starts one sibling container per project VM.
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  pgdata:

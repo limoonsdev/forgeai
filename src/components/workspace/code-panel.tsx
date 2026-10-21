@@ -98,6 +98,12 @@ function Tree({ nodes, selected, onSelect, depth = 0, changed }: { nodes: Node[]
   );
 }
 
+type TsDefaults = {
+  setDiagnosticsOptions: (o: Record<string, unknown>) => void;
+  setCompilerOptions: (o: Record<string, unknown>) => void;
+};
+type TsApi = { typescriptDefaults?: TsDefaults; javascriptDefaults?: TsDefaults };
+
 /** Plain textarea editor used when Monaco cannot load (offline, blocked assets…). */
 function FallbackEditor({ value, onChange, readOnly }: { value: string; onChange: (v: string) => void; readOnly?: boolean }) {
   return (
@@ -244,6 +250,18 @@ export function CodePanel({
                 value={content}
                 theme={resolved === "dark" ? "vs-dark" : "light"}
                 onChange={(v) => setContent(v ?? "")}
+                beforeMount={(monaco) => {
+                  // The VM is the source of truth for type errors: keep syntax checks, drop unresolved-import noise.
+                  const m = monaco as unknown as {
+                    typescript?: TsApi;
+                    languages: { typescript?: TsApi };
+                  };
+                  const ts = m.typescript ?? m.languages.typescript;
+                  for (const defaults of [ts?.typescriptDefaults, ts?.javascriptDefaults]) {
+                    defaults?.setDiagnosticsOptions({ noSemanticValidation: true, noSyntaxValidation: false });
+                    defaults?.setCompilerOptions({ jsx: 4, allowJs: true, allowNonTsExtensions: true, target: 99, moduleResolution: 2, esModuleInterop: true });
+                  }
+                }}
                 options={{
                   readOnly,
                   fontSize: 13,

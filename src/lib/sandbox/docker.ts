@@ -125,6 +125,8 @@ export const dockerProvider: SandboxProvider = {
       ExposedPorts: { "3000/tcp": {} },
       Env: ["NEXT_TELEMETRY_DISABLED=1", "NODE_ENV=development", "PORT=3000", "HOSTNAME=0.0.0.0"],
       HostConfig: {
+        // tini as PID 1 reaps zombies so a crashed dev server is detected and restarted.
+        Init: true,
         PortBindings: { "3000/tcp": [{ HostIp: process.env.FORGED_SANDBOX_BIND_IP || "127.0.0.1", HostPort: "" }] },
         Memory: memoryMb * 1024 * 1024,
         NanoCpus: Number(process.env.FORGED_SANDBOX_CPUS || 2) * 1e9,
