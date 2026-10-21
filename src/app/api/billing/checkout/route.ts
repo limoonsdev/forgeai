@@ -25,7 +25,7 @@ export const POST = withApi(
             price_data: {
               currency: "usd",
               unit_amount: body.amountUsd * 100,
-              product_data: { name: `Forged.dev credits — $${body.amountUsd}`, description: "AI credits, never expire" },
+              product_data: { name: `Forged.dev credits: $${body.amountUsd}`, description: "Prepaid AI credits" },
             },
           },
         ],

@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { THEME_KEY as STORAGE_KEY } from "@/lib/theme-script";
 
 export type Theme = "dark" | "light" | "system";
-const STORAGE_KEY = "forged-theme";
 
 type Ctx = { theme: Theme; resolved: "dark" | "light"; setTheme: (t: Theme) => void };
 const ThemeContext = React.createContext<Ctx | null>(null);
@@ -15,8 +15,6 @@ function resolve(theme: Theme): "dark" | "light" {
   return theme;
 }
 
-/** Inline script injected in <head> so the correct theme is applied before first paint. */
-export const themeScript = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}')||'dark';var r=t==='system'?(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'):t;var c=document.documentElement.classList;r==='dark'?c.add('dark'):c.remove('dark');}catch(e){document.documentElement.classList.add('dark')}})();`;
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = React.useState<Theme>("dark");

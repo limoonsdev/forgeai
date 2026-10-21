@@ -7,14 +7,14 @@ import type { PublicModel } from "@/lib/ai/catalog";
 import { PromptComposer } from "@/components/shared/prompt-composer";
 
 const IDEAS = [
-  "A SaaS landing page for an AI meeting assistant with pricing and FAQ",
-  "A personal finance dashboard with charts and a transactions table",
-  "A recipe sharing app with search, filters and favorites",
-  "A Pomodoro timer with stats and a beautiful dark mode",
-  "A portfolio for a product designer with case studies",
+  "Landing page for a meeting-notes app, with pricing and FAQ",
+  "Personal finance dashboard with charts and a transactions table",
+  "Recipe site with search, filters and favourites",
+  "Pomodoro timer with daily stats and a dark mode",
+  "Portfolio for a product designer with three case studies",
 ];
 
-export async function createProjectRequest(body: { prompt: string; model: string; tokenSaver: boolean }) {
+export async function createProjectRequest(body: { prompt: string; model: string; tokenSaver: boolean; attachments?: string[] }) {
   const res = await fetch("/api/projects", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -34,18 +34,20 @@ export function NewProject({ models, defaultModel, defaultTokenSaver }: { models
   const [busy, setBusy] = useState(false);
   const autoStarted = useRef(false);
 
-  const create = async (prompt: string, tokenSaver = saver) => {
-    if (!prompt.trim() || busy) return;
+  const create = async (prompt: string, tokenSaver = saver, attachments: string[] = []) => {
+    if ((!prompt.trim() && !attachments.length) || busy) return false;
     setBusy(true);
     try {
-      const { project } = await createProjectRequest({ prompt, model, tokenSaver });
+      const { project } = await createProjectRequest({ prompt, model, tokenSaver, attachments });
       try {
         localStorage.removeItem("forged:pending-prompt");
       } catch {}
       router.push(`/project/${project.id}`);
+      return true;
     } catch (err) {
       toast.error((err as Error).message);
       setBusy(false);
+      return false;
     }
   };
 
@@ -73,17 +75,17 @@ export function NewProject({ models, defaultModel, defaultTokenSaver }: { models
       <PromptComposer
         value={value}
         onChange={setValue}
-        onSubmit={() => create(value)}
+        onSubmit={(ids) => create(value, saver, ids)}
         running={busy}
         models={models}
         model={model}
         onModelChange={setModel}
         tokenSaver={saver}
         onTokenSaverChange={setSaver}
-        minRows={3}
         autoFocus
         pickerSide="bottom"
-        placeholder="Describe the app you want to forge… (Enter to start)"
+        inputClassName="min-h-[5.5rem]"
+        placeholder="Describe the app you want to build. Paste links or screenshots for reference."
       />
       <div className="mt-3 flex flex-wrap gap-2">
         {IDEAS.map((idea) => (

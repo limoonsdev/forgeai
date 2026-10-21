@@ -304,3 +304,59 @@ html:not(.dark) .prompt-link {
 .prompt-rich:empty::before {
   content: "\200b";
 }
+
+/* Landing atmosphere */
+.grain {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+@keyframes forge-shimmer {
+  0%, 100% { opacity: 0.75; transform: scaleY(1); }
+  50% { opacity: 1; transform: scaleY(1.06); }
+}
+.forge-shimmer {
+  transform-origin: 50% 100%;
+  animation: forge-shimmer 5s ease-in-out infinite;
+}
+@keyframes cursor-glide {
+  0%, 12% { left: 85%; top: 75%; }
+  45%, 55% { left: 30%; top: 52%; }
+  80%, 92% { left: 78%; top: 52%; }
+  100% { left: 85%; top: 75%; }
+}
+.cursor-glide {
+  animation: cursor-glide 5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes lane-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.lane-fill {
+  transform-origin: left;
+  animation: lane-fill 2.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes typing-url {
+  0%, 8% { max-width: 0; }
+  45%, 92% { max-width: 24ch; }
+  100% { max-width: 0; }
+}
+.typing-url {
+  display: inline-block;
+  max-width: 24ch;
+  animation: typing-url 7s steps(23) infinite;
+}
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* Legal documents */
+.legal-prose { @apply max-w-3xl text-[0.95rem] leading-relaxed text-foreground/90; }
+.legal-prose h2 { @apply mt-10 mb-3 font-display text-xl font-bold text-foreground; }
+.legal-prose p { @apply my-3; }
+.legal-prose ul { @apply my-3 list-disc space-y-1.5 pl-5; }
+.legal-prose a { @apply text-primary underline underline-offset-2; }
+.legal-prose strong { @apply font-semibold text-foreground; }
+.legal-prose code { @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em]; }
+.legal-prose table { @apply my-4 block w-full overflow-x-auto text-sm; }
+.legal-prose th { @apply border-b px-3 py-2 text-left font-semibold whitespace-nowrap; }
+.legal-prose td { @apply border-b px-3 py-2 align-top text-muted-foreground; }

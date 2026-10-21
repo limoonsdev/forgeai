@@ -23,11 +23,9 @@ export default async function DashboardPage() {
   return (
     <main className="mx-auto max-w-7xl px-4 pb-24 sm:px-6">
       <section className="relative mx-auto max-w-3xl pt-16 pb-14 text-center">
-        <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 mx-auto h-64 max-w-2xl rounded-full bg-[#ff7a1a]/15 blur-3xl" />
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">
-          What will you <span className="font-serif font-normal italic text-gradient-ember">forge</span> today, {firstName}?
-        </h1>
-        <p className="mt-3 text-muted-foreground">Describe an app — the agent plans it, codes it and runs it in a live Next.js VM.</p>
+        <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 mx-auto h-64 max-w-2xl rounded-full bg-brand/15 blur-3xl" />
+        <h1 className="font-display text-3xl font-bold sm:text-5xl">What are we building, {firstName}?</h1>
+        <p className="mt-3 text-muted-foreground">The agent plans the app, writes the code and runs it in its own Next.js VM while you watch.</p>
         <div className="mt-8 text-left">
           <Suspense>
             <NewProject models={models} defaultModel={pickDefaultModel(prefs?.defaultModel, plan)} defaultTokenSaver={prefs?.tokenSaver ?? false} />

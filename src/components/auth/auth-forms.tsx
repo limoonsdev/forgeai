@@ -257,7 +257,7 @@ export function ResetPasswordForm({ token }: { token: string | null }) {
           toast.error(error.message ?? "Could not reset your password");
           return;
         }
-        toast.success("Password updated — you can log in now");
+        toast.success("Password updated. You can log in now.");
         router.push("/login");
       }}
     >

@@ -10,7 +10,7 @@ export async function generateMetadata({ params }: PageProps<"/share/[token]">):
   const { token } = await params;
   const p = await getSharedProject(token);
   return p
-    ? { title: `${p.name} — built with Forged`, description: p.description || "A Next.js app forged with AI on Forged.dev", robots: { index: false } }
+    ? { title: `${p.name} · built with Forged`, description: p.description || "A Next.js app built on Forged.dev", robots: { index: false } }
     : { title: "Shared session" };
 }
 

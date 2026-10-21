@@ -266,7 +266,11 @@ export const RichInput = forwardRef<
           }
         }}
       />
-      {!value && placeholder && <div className="pointer-events-none absolute inset-0 text-muted-foreground/75 select-none">{placeholder}</div>}
+      {!value && placeholder && (
+        <div aria-hidden className={cn(className, "pointer-events-none absolute inset-0 overflow-hidden text-muted-foreground/75 select-none")}>
+          {placeholder}
+        </div>
+      )}
     </div>
   );
 });

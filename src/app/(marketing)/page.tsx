@@ -1,16 +1,8 @@
 import { Hero } from "@/components/landing/hero";
-import { ProductPreview } from "@/components/landing/product-preview";
-import {
-  FeaturesBento,
-  FinalCta,
-  HowItWorks,
-  ModelsShowcase,
-  NextOnly,
-  ReferralBanner,
-  StackMarquee,
-  Faq,
-} from "@/components/landing/sections";
+import { BuildStory } from "@/components/landing/build-story";
+import { Capabilities } from "@/components/landing/capabilities";
 import { PricingSection } from "@/components/landing/pricing";
+import { ConnectorsStrip, Faq, FinalCta, ModelsShowcase, PublishSection, SecuritySection } from "@/components/landing/sections";
 import { getSession } from "@/lib/server/session";
 
 export default async function LandingPage() {
@@ -19,14 +11,13 @@ export default async function LandingPage() {
   return (
     <>
       <Hero signedIn={signedIn} />
-      <ProductPreview />
-      <StackMarquee />
-      <HowItWorks />
-      <FeaturesBento />
+      <BuildStory />
+      <Capabilities />
       <ModelsShowcase />
-      <NextOnly />
+      <ConnectorsStrip />
+      <PublishSection />
+      <SecuritySection />
       <PricingSection signedIn={signedIn} />
-      <ReferralBanner />
       <Faq />
       <FinalCta />
     </>

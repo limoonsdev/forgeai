@@ -54,7 +54,7 @@ export function BillingView({
   const currentPlan = plans.find((p) => p.id === plan) ?? plans[0];
 
   useEffect(() => {
-    if (params.get("success") === "credits") toast.success("Payment received — your credits will appear in a few seconds.");
+    if (params.get("success") === "credits") toast.success("Payment received. Your credits will appear in a few seconds.");
     if (params.get("success") === "plan") toast.success("Welcome to your new plan 🔥");
     const wanted = params.get("plan");
     if (wanted && wanted !== plan) document.getElementById(`plan-${wanted}`)?.scrollIntoView({ behavior: "smooth", block: "center" });

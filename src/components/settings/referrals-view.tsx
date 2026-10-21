@@ -16,7 +16,7 @@ export function ReferralsView({ code, link, earned, pending, referrals, rewardUs
     setCopied(key);
     setTimeout(() => setCopied(null), 1500);
   };
-  const message = `I'm building apps with AI on Forged.dev — sign up with my link and get $${rewardUsd} of free credits: ${link}`;
+  const message = `I build web apps with Forged.dev. Sign up with my link and you get $${rewardUsd} of credits: ${link}`;
 
   return (
     <div className="space-y-6">
@@ -97,7 +97,7 @@ export function ReferralsView({ code, link, earned, pending, referrals, rewardUs
 
       <SettingsSection title="Your referrals">
         {referrals.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No referrals yet — share your link to start earning.</p>
+          <p className="text-sm text-muted-foreground">No referrals yet. Share your link to get started.</p>
         ) : (
           <ul className="divide-y">
             {referrals.map((r) => (

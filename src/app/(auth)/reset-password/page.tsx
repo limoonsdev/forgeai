@@ -8,7 +8,7 @@ export default async function ResetPasswordPage({ searchParams }: PageProps<"/re
   const sp = await searchParams;
   const token = typeof sp.token === "string" ? sp.token : null;
   return (
-    <AuthShell title="Choose a new password" subtitle="Pick something strong — at least 8 characters.">
+    <AuthShell title="Choose a new password" subtitle="At least 8 characters. Longer is better.">
       <ResetPasswordForm token={token} />
     </AuthShell>
   );

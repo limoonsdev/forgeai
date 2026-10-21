@@ -70,7 +70,7 @@ export async function attachReferral(refereeId: string, code: string) {
       userId: refereeId,
       amountMicros: CREDITS.refereeRewardMicros,
       type: "referee_bonus",
-      description: "Referral welcome gift — $5 of credits",
+      description: "Referral welcome credits",
       reference: `referee:${id}`,
     });
   }
@@ -89,7 +89,7 @@ export async function maybeRewardReferrer(refereeId: string) {
     userId: pending.referrerId,
     amountMicros: pending.rewardMicros,
     type: "referral_bonus",
-    description: `Referral reward — ${referee?.name ?? "a friend"} forged their first app`,
+    description: `Referral reward: ${referee?.name ?? "a friend"} finished their first build`,
     reference: `referral:${pending.id}`,
   });
 }

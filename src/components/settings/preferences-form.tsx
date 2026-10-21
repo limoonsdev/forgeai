@@ -69,7 +69,7 @@ export function PreferencesForm({ initial, models }: { initial: PrefsValue; mode
           <Row label="Default model" hint="Used for new projects.">
             <ModelPicker models={models} value={v.defaultModel} onChange={(id) => set("defaultModel", id)} side="bottom" />
           </Row>
-          <Row label="Token saver by default" hint="Prompt caching, trimmed context, lower reasoning effort and concise replies — roughly half the cost.">
+          <Row label="Token saver by default" hint="Lower reasoning effort, trimmed context and shorter replies. Usually about half the cost.">
             <Switch checked={v.tokenSaver} onCheckedChange={(c) => set("tokenSaver", c)} data-testid="pref-token-saver" />
           </Row>
           <Row label="Reply language" hint="The language the agent answers in.">

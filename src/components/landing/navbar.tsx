@@ -2,18 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { MenuIcon, XIcon } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const links = [
-  { href: "/#features", label: "Features" },
   { href: "/#how", label: "How it works" },
+  { href: "/#capabilities", label: "Capabilities" },
   { href: "/#models", label: "Models" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/docs", label: "API" },
 ];
 
 export function Navbar({ signedIn }: { signedIn: boolean }) {
@@ -30,9 +29,10 @@ export function Navbar({ signedIn }: { signedIn: boolean }) {
   return (
     <header className="fixed inset-x-0 top-0 z-50 flex justify-center px-3 pt-3">
       <nav
+        aria-label="Main"
         className={cn(
-          "flex w-full max-w-6xl items-center justify-between rounded-2xl border px-3 py-2 transition-all duration-300 sm:px-4",
-          scrolled ? "glass border-border shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5)]" : "border-transparent bg-transparent",
+          "flex w-full max-w-6xl items-center justify-between rounded-2xl border px-3 py-2 transition-[background-color,border-color,box-shadow] duration-300 sm:px-4",
+          scrolled ? "glass border-border shadow-[0_8px_40px_-12px_rgb(0_0_0/0.5)]" : "border-transparent bg-transparent",
         )}
       >
         <Link href="/" className="flex items-center" aria-label="Forged.dev home">
@@ -40,11 +40,7 @@ export function Navbar({ signedIn }: { signedIn: boolean }) {
         </Link>
         <div className="hidden items-center gap-1 md:flex">
           {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
-            >
+            <Link key={l.href} href={l.href} className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
               {l.label}
             </Link>
           ))}
@@ -60,12 +56,12 @@ export function Navbar({ signedIn }: { signedIn: boolean }) {
                 <Link href="/login">Log in</Link>
               </Button>
               <Button asChild variant="ember" size="sm" className="h-9 px-4">
-                <Link href="/signup">Start forging</Link>
+                <Link href="/signup">Sign up</Link>
               </Button>
             </>
           )}
         </div>
-        <button className="rounded-lg p-2 md:hidden" onClick={() => setOpen((o) => !o)} aria-label="Toggle menu">
+        <button className="rounded-lg p-2 md:hidden" onClick={() => setOpen((o) => !o)} aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open}>
           {open ? <XIcon className="size-5" /> : <MenuIcon className="size-5" />}
         </button>
       </nav>
@@ -87,7 +83,7 @@ export function Navbar({ signedIn }: { signedIn: boolean }) {
                 <Link href={signedIn ? "/dashboard" : "/login"}>{signedIn ? "Dashboard" : "Log in"}</Link>
               </Button>
               <Button asChild variant="ember">
-                <Link href="/signup">Start forging</Link>
+                <Link href="/signup">Sign up</Link>
               </Button>
             </div>
           </motion.div>

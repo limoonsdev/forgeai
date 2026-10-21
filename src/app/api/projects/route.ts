@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createProject, listProjects, serializeProject } from "@/lib/server/projects";
+import { createProject, deleteProject, listProjects, serializeProject } from "@/lib/server/projects";
 import { startRun } from "@/lib/ai/agent";
 import { json, readJson, withApi } from "@/lib/server/api";
 
@@ -15,22 +15,33 @@ const CreateBody = z.object({
   tokenSaver: z.boolean().optional(),
   /** Optional first prompt: the agent starts forging right away. */
   prompt: z.string().max(20_000).optional(),
+  attachments: z.array(z.string().max(40)).max(8).optional(),
 });
 
-export const POST = withApi(async (req, { auth }) => {
-  const body = CreateBody.parse(await readJson(req));
-  const project = await createProject(auth.userId, body);
-  let run: { runId: string; model: string } | null = null;
-  if (body.prompt?.trim()) {
-    const r = await startRun({
-      projectId: project.id,
-      userId: auth.userId,
-      prompt: body.prompt,
-      modelId: body.model,
-      tokenSaver: body.tokenSaver,
-      source: "web",
-    });
-    run = { runId: r.runId, model: r.model };
-  }
-  return json({ project: serializeProject(project), run }, { status: 201 });
-});
+export const POST = withApi(
+  async (req, { auth }) => {
+    const body = CreateBody.parse(await readJson(req));
+    const project = await createProject(auth.userId, body);
+    let run: { runId: string; model: string } | null = null;
+    if (body.prompt?.trim() || body.attachments?.length) {
+      try {
+        const r = await startRun({
+          projectId: project.id,
+          userId: auth.userId,
+          prompt: body.prompt,
+          attachmentIds: body.attachments,
+          modelId: body.model,
+          tokenSaver: body.tokenSaver,
+          source: "web",
+        });
+        run = { runId: r.runId, model: r.model };
+      } catch (err) {
+        // Don't leave an empty project behind when the first run is refused (credits, moderation…).
+        await deleteProject(auth.userId, project.id).catch(() => {});
+        throw err;
+      }
+    }
+    return json({ project: serializeProject(project), run }, { status: 201 });
+  },
+  { rateLimit: 12, bucket: "create-project" },
+);

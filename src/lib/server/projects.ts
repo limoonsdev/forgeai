@@ -1,11 +1,12 @@
 import "server-only";
 import JSZip from "jszip";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { messages, projectFiles, projects, type Project } from "@/lib/db/schema";
 import { stopSandbox } from "@/lib/sandbox";
 import { getActiveRun, stopRun } from "@/lib/ai/run-registry";
 import { getAllFiles } from "./files";
+import { ApiError } from "./api";
 import { newId, newSecretToken } from "./ids";
 import { loadTemplateFiles } from "./template";
 
@@ -27,7 +28,11 @@ export function serializeProject(p: Project) {
 }
 export type ProjectDTO = ReturnType<typeof serializeProject>;
 
+const MAX_PROJECTS = Number(process.env.FORGED_MAX_PROJECTS_PER_USER || 200);
+
 export async function createProject(userId: string, input: { name?: string; description?: string; model?: string; tokenSaver?: boolean | null }) {
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(projects).where(eq(projects.userId, userId));
+  if (count >= MAX_PROJECTS) throw new ApiError(409, "project_limit", `You've reached ${MAX_PROJECTS} projects. Delete old ones to create more.`);
   const id = newId();
   const [project] = await db
     .insert(projects)

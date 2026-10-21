@@ -1,5 +1,6 @@
 import { Navbar } from "@/components/landing/navbar";
 import { Footer } from "@/components/landing/footer";
+import { CookieNotice } from "@/components/legal/cookie-notice";
 import { getSession } from "@/lib/server/session";
 
 export default async function MarketingLayout({ children }: LayoutProps<"/">) {
@@ -9,6 +10,7 @@ export default async function MarketingLayout({ children }: LayoutProps<"/">) {
       <Navbar signedIn={Boolean(session)} />
       <main className="flex-1">{children}</main>
       <Footer />
+      <CookieNotice />
     </div>
   );
 }

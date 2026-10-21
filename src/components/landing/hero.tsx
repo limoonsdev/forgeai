@@ -3,68 +3,59 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { motion } from "motion/react";
-import { ArrowUpIcon, ChevronRightIcon, LeafIcon, PaperclipIcon, SparklesIcon } from "lucide-react";
+import { useReducedMotion } from "@/lib/use-reduced-motion";
+import { ArrowDownIcon } from "lucide-react";
+import { BrandLogo } from "@/components/brand/brand-logo";
+import { PromptComposer, type ComposerHandle } from "@/components/shared/prompt-composer";
 import { EmberField } from "./ember-field";
+import { EASE } from "./reveal";
 import { useTypewriter } from "./typewriter";
-import { cn } from "@/lib/utils";
 
 const EXAMPLES = [
-  "A SaaS landing page for an AI note-taking app with pricing and testimonials…",
-  "A crypto portfolio dashboard with live charts and dark mode…",
-  "A booking site for a Paris yoga studio with a class calendar…",
-  "A Notion-style kanban board with drag & drop and local storage…",
-  "A portfolio for a 3D artist with a masonry gallery and smooth animations…",
+  "A landing page for a coffee roaster in Lyon, with an online order form",
+  "A habit tracker with streaks, reminders and a yearly heatmap",
+  "A client portal where freelancers share invoices and files",
+  "A portfolio for a 3D artist with a filterable gallery",
+  "Snake, playable in the browser, with a high-score table",
 ];
 
-const CHIPS = ["SaaS landing page", "Analytics dashboard", "AI chat app", "E-commerce store", "Portfolio", "Browser game"];
+const CHIPS = [
+  ["Coffee shop site", "A one-page site for a specialty coffee shop: menu, opening hours, map and an order-ahead form."],
+  ["Habit tracker", "A habit tracker with daily check-ins, streaks and a yearly heatmap. Data saved in the browser."],
+  ["Client portal", "A client portal where a freelancer shares invoices and files, with a login screen and a dashboard."],
+  ["Portfolio", "A portfolio for a photographer with a masonry gallery, an about page and a contact form."],
+  ["Browser game", "Snake in the browser with keyboard and touch controls, increasing speed and a local high-score table."],
+] as const;
 
-const ease = [0.22, 1, 0.36, 1] as const;
-
-function Headline() {
-  const line1 = ["Forge", "real", "apps"];
-  const line2 = ["from", "a", "single"];
-  const word = (w: string, i: number) => (
-    <motion.span
-      key={`${w}-${i}`}
-      className="text-gradient-fade inline-block"
-      initial={{ opacity: 0, y: 24, filter: "blur(10px)" }}
-      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      transition={{ duration: 0.8, delay: 0.15 + i * 0.07, ease }}
-    >
-      {w}&nbsp;
-    </motion.span>
-  );
+/** The 4-point spark from the logo, used as the headline's full stop. */
+function Spark({ className }: { className?: string }) {
   return (
-    <h1 className="text-[2.75rem] leading-[0.98] font-semibold tracking-[-0.045em] sm:text-7xl lg:text-[5.6rem]">
-      <span className="block">{line1.map((w, i) => word(w, i))}</span>
-      <span className="block">
-        {line2.map((w, i) => word(w, i + 3))}
-        <motion.span
-          className="inline-block pr-2 font-serif font-normal italic tracking-[-0.02em]"
-          initial={{ opacity: 0, y: 24, filter: "blur(10px)", scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)", scale: 1 }}
-          transition={{ duration: 1, delay: 0.62, ease }}
-        >
-          <span className="text-gradient-ember">prompt.</span>
-        </motion.span>
-      </span>
-    </h1>
+    <svg viewBox="0 0 96 128" className={className} aria-hidden>
+      <defs>
+        <linearGradient id="hero-spark" x1="0.5" y1="0" x2="0.5" y2="1">
+          <stop offset="0%" stopColor="var(--brand-glow)" />
+          <stop offset="50%" stopColor="var(--brand)" />
+          <stop offset="100%" stopColor="var(--brand-hot)" />
+        </linearGradient>
+      </defs>
+      <path d="M48 0 C 52 40, 62 54, 96 64 C 62 74, 52 88, 48 128 C 44 88, 34 74, 0 64 C 34 54, 44 40, 48 0 Z" fill="url(#hero-spark)" />
+    </svg>
   );
 }
 
 export function Hero({ signedIn }: { signedIn: boolean }) {
   const router = useRouter();
+  const reduced = useReducedMotion();
   const [value, setValue] = useState("");
   const [saver, setSaver] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const ref = useRef<HTMLTextAreaElement>(null);
-  const placeholder = useTypewriter(EXAMPLES, { enabled: !value });
+  const composer = useRef<ComposerHandle>(null);
+  const typed = useTypewriter(EXAMPLES, { enabled: !value && !reduced });
 
-  const submit = (prompt = value) => {
-    const text = prompt.trim();
+  const submit = () => {
+    const text = value.trim();
     if (!text) {
-      ref.current?.focus();
-      return;
+      composer.current?.focus();
+      return false;
     }
     try {
       localStorage.setItem("forged:pending-prompt", JSON.stringify({ prompt: text, tokenSaver: saver, at: Date.now() }));
@@ -73,141 +64,83 @@ export function Hero({ signedIn }: { signedIn: boolean }) {
     router.push(signedIn ? `/dashboard${q}` : `/signup${q}`);
   };
 
+  const fade = (delay: number) =>
+    reduced ? {} : { initial: { opacity: 0, y: 18 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.8, delay, ease: EASE } };
+
   return (
-    <section className="relative isolate overflow-hidden pt-32 pb-10 sm:pt-40">
-      {/* Atmosphere */}
-      <div className="bg-grid mask-radial absolute inset-0 -z-10 opacity-60" />
-      <div className="absolute inset-x-0 top-0 -z-10 h-[680px] bg-[radial-gradient(ellipse_70%_55%_at_50%_-10%,rgba(255,122,26,0.22),transparent_70%)]" />
-      <div className="animate-glow absolute bottom-[-30%] left-1/2 -z-10 h-[620px] w-[1100px] -translate-x-1/2 rounded-[100%] bg-[radial-gradient(closest-side,rgba(255,106,26,0.35),rgba(255,61,36,0.12)_55%,transparent)] blur-2xl" />
-      <EmberField density={0.7} className="pointer-events-none absolute inset-0 -z-10 h-full w-full" />
+    <section id="top" className="relative isolate flex min-h-[100svh] flex-col overflow-hidden px-4 pt-24 pb-6 sm:px-6">
+      {/* The forge: heat rising from below, sparks drifting up. */}
+      <div aria-hidden className="absolute inset-0 -z-10">
+        <div className="absolute inset-x-0 bottom-0 h-[75%] bg-[radial-gradient(55%_60%_at_50%_100%,color-mix(in_oklch,var(--brand)_42%,transparent),color-mix(in_oklch,var(--brand-hot)_14%,transparent)_45%,transparent_75%)]" />
+        <div className="forge-shimmer absolute inset-x-0 bottom-0 h-[45%] bg-[radial-gradient(40%_50%_at_50%_100%,color-mix(in_oklch,var(--brand-glow)_30%,transparent),transparent_70%)]" />
+        <div className="heat-line absolute inset-x-[8%] bottom-0 h-px opacity-80" />
+        <div className="grain absolute inset-0 opacity-[0.07] mix-blend-overlay" />
+        <EmberField density={0.55} className="absolute inset-0 h-full w-full" />
+      </div>
 
-      <div className="mx-auto flex max-w-5xl flex-col items-center px-5 text-center">
-        <motion.a
-          href="#models"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease }}
-          className="group mb-8 inline-flex items-center gap-2 rounded-full border border-border bg-card/60 py-1 pr-3 pl-1 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/40 hover:text-foreground"
-        >
-          <span className="rounded-full bg-ember px-2 py-0.5 text-[0.68rem] font-semibold text-white">New</span>
-          Claude Opus 5.5, GPT-5.6 &amp; Gemini 3.6 are live
-          <ChevronRightIcon className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-        </motion.a>
+      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center text-center">
+        <motion.h1 {...fade(0.05)} className="font-display text-[2.6rem] leading-[0.95] font-extrabold text-balance sm:text-7xl lg:text-[5.4rem]">
+          Forge something <br className="hidden sm:block" />
+          real
+          <Spark className="ml-1 inline-block h-[0.62em] w-[0.47em] translate-y-[-0.02em] align-baseline drop-shadow-[0_0_18px_color-mix(in_oklch,var(--brand)_70%,transparent)]" />
+        </motion.h1>
 
-        <Headline />
-
-        <motion.p
-          className="mt-6 max-w-2xl text-base text-pretty text-muted-foreground sm:text-lg"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.75, ease }}
-        >
-          Describe it. Forged&apos;s AI agent writes, runs and previews a production-ready{" "}
-          <span className="text-foreground">Next.js</span> app in its own cloud VM — then you ship it.
+        <motion.p {...fade(0.18)} className="mt-5 max-w-xl text-base leading-relaxed text-pretty text-muted-foreground sm:text-lg">
+          Describe the app you want. An agent writes it in Next.js, runs it in its own VM and shows you every step.
         </motion.p>
 
-        {/* Prompt box */}
-        <motion.div
-          className="relative mt-10 w-full max-w-3xl"
-          initial={{ opacity: 0, y: 24, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.9, delay: 0.9, ease }}
-        >
-          <div className={cn("absolute -inset-6 -z-10 rounded-[2rem] bg-[#ff7a1a]/20 blur-3xl transition-opacity duration-500", focused ? "opacity-100" : "opacity-40")} />
-          <div className="relative overflow-hidden rounded-[1.4rem] p-px">
-            <div className="animate-spin-slow absolute inset-[-120%] bg-[conic-gradient(from_0deg,transparent_0deg,rgba(255,122,26,0.9)_50deg,rgba(255,200,120,0.6)_80deg,transparent_140deg,transparent_360deg)]" />
-            <div className="absolute inset-0 rounded-[1.4rem] bg-border" />
-            <div className="relative rounded-[calc(1.4rem-1px)] bg-card/95 text-left backdrop-blur-xl">
-              <div className="relative">
-                <textarea
-                  ref={ref}
-                  value={value}
-                  onChange={(e) => setValue(e.target.value)}
-                  onFocus={() => setFocused(true)}
-                  onBlur={() => setFocused(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      submit();
-                    }
-                  }}
-                  rows={3}
-                  aria-label="Describe the app you want to build"
-                  className="block min-h-[7.5rem] w-full resize-none bg-transparent px-5 pt-5 pb-2 text-[1.02rem] leading-relaxed outline-none"
-                />
-                {!value && (
-                  <div className="pointer-events-none absolute inset-x-5 top-5 text-[1.02rem] leading-relaxed text-muted-foreground/80">
-                    {placeholder}
-                    <span className="ml-0.5 inline-block h-5 w-[2px] translate-y-1 animate-pulse bg-primary" />
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center justify-between gap-2 px-3 pb-3">
-                <div className="flex items-center gap-1.5">
-                  <button type="button" className="rounded-lg p-2 text-muted-foreground transition hover:bg-accent hover:text-foreground" aria-label="Attach">
-                    <PaperclipIcon className="size-4" />
-                  </button>
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border bg-background/40 px-2.5 py-1.5 text-xs font-medium">
-                    <SparklesIcon className="size-3.5 text-primary" />
-                    <span className="whitespace-nowrap">
-                      <span className="hidden sm:inline">Claude </span>Sonnet 5.5
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSaver((s) => !s)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition",
-                      saver ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400" : "bg-background/40 text-muted-foreground hover:text-foreground",
-                    )}
-                    aria-pressed={saver}
-                  >
-                    <LeafIcon className="size-3.5" />
-                    <span className="hidden sm:inline">Token saver</span>
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => submit()}
-                  className="group inline-flex h-10 shrink-0 items-center gap-2 rounded-xl bg-ember pr-3 pl-4 whitespace-nowrap text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(255,106,26,0.9)] transition hover:brightness-110"
-                >
-                  Forge it
-                  <span className="flex size-6 items-center justify-center rounded-lg bg-white/20 transition group-hover:-translate-y-0.5">
-                    <ArrowUpIcon className="size-3.5" />
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
+        <motion.div {...fade(0.3)} className="mt-8 w-full max-w-2xl text-left">
+          <PromptComposer
+            ref={composer}
+            value={value}
+            onChange={setValue}
+            onSubmit={submit}
+            tokenSaver={saver}
+            onTokenSaverChange={setSaver}
+            signedIn={signedIn}
+            submitLabel="Build"
+            className="bg-card/90 backdrop-blur-xl"
+            inputClassName="min-h-[5.25rem] text-base"
+            placeholder={
+              <>
+                {reduced ? EXAMPLES[0] : typed}
+                {!reduced && <span className="ml-0.5 inline-block h-[1.1em] w-0.5 translate-y-[0.2em] animate-pulse bg-primary" />}
+              </>
+            }
+            modelSlot={
+              <span className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-muted-foreground">
+                <BrandLogo id="claude" className="size-3.5" />
+                <span className="hidden sm:inline">Sonnet 5.5</span>
+              </span>
+            }
+          />
         </motion.div>
 
-        <motion.div
-          className="mt-5 flex max-w-3xl flex-wrap justify-center gap-2"
-          initial="hidden"
-          animate="show"
-          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05, delayChildren: 1.1 } } }}
-        >
-          {CHIPS.map((c) => (
-            <motion.button
-              key={c}
-              variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
-              onClick={() => setValue(`Build a ${c.toLowerCase()} `)}
+        <motion.div {...fade(0.42)} className="mt-4 flex max-w-2xl flex-wrap justify-center gap-2">
+          {CHIPS.map(([label, prompt]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                setValue(prompt);
+                composer.current?.focus();
+              }}
               className="rounded-full border bg-card/50 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/40 hover:text-foreground"
             >
-              {c}
-            </motion.button>
+              {label}
+            </button>
           ))}
         </motion.div>
-
-        <motion.p
-          className="mt-6 text-xs text-muted-foreground"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.4, duration: 0.8 }}
-        >
-          Free to start · $1 of credits on sign-up · <span className="text-foreground">+$5 for every friend you invite</span>
-        </motion.p>
       </div>
+
+      <motion.a
+        href="#how"
+        {...(reduced ? {} : { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { delay: 1, duration: 0.8 } })}
+        className="mx-auto mt-6 flex flex-col items-center gap-1.5 text-xs text-muted-foreground transition hover:text-foreground"
+      >
+        See a build, start to finish
+        <ArrowDownIcon className="size-4 animate-bounce [animation-duration:2s]" />
+      </motion.a>
     </section>
   );
 }

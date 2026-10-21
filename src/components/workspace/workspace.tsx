@@ -308,7 +308,7 @@ export function Workspace(props: WorkspaceProps) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>You&apos;re out of credits</DialogTitle>
-            <DialogDescription>Top up to keep forging — or invite a friend and get $5 of credits for free.</DialogDescription>
+            <DialogDescription>Add credits to continue, or invite a friend: you both get $5.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" asChild>

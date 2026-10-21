@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import { Providers } from "@/components/providers";
-import { themeScript } from "@/components/theme-provider";
+import { themeScript } from "@/lib/theme-script";
 import { appearanceScript } from "@/lib/appearance";
 import "./globals.css";
 
@@ -14,20 +14,20 @@ const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
   title: {
-    default: "Forged.dev — Forge production-ready Next.js apps with AI",
+    default: "Forged.dev: describe a web app, an agent builds it",
     template: "%s · Forged.dev",
   },
   description:
-    "Describe your idea. Forged's AI agent writes, runs and previews a real Next.js app in a cloud VM — then you ship it. Choose your model, save tokens, share sessions.",
-  keywords: ["AI website builder", "Next.js", "AI agent", "app builder", "Lovable alternative", "v0 alternative"],
+    "Describe the app you want. An AI agent writes it in Next.js, runs it in its own VM and shows you every step. Publish it or download the code.",
+  keywords: ["AI website builder", "Next.js", "AI agent", "app builder"],
   openGraph: {
-    title: "Forged.dev — Forge apps from a single prompt",
-    description: "The AI agent that forges real Next.js apps in a live VM.",
+    title: "Forged.dev",
+    description: "Describe a web app. An agent builds it in Next.js and runs it live.",
     url: appUrl,
     siteName: "Forged.dev",
     type: "website",
   },
-  twitter: { card: "summary_large_image", title: "Forged.dev", description: "Forge real Next.js apps from a single prompt." },
+  twitter: { card: "summary_large_image", title: "Forged.dev", description: "Describe a web app. An agent builds it in Next.js and runs it live." },
 };
 
 export const viewport: Viewport = {

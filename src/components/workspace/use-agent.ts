@@ -201,7 +201,7 @@ export function useAgent(projectId: string, initial: { messages: ChatMessageDTO[
         });
       } catch {
         setRunning(false);
-        toast.error("Network error — please retry.");
+        toast.error("Network error. Please try again.");
         return false;
       }
       if (!res.ok) {

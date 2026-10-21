@@ -41,7 +41,7 @@ export function ShareDialog({ projectId, initial }: { projectId: string; initial
               <GlobeIcon className="size-4 text-primary" />
               <div>
                 <p className="text-sm font-medium">Public link</p>
-                <p className="text-xs text-muted-foreground">Read-only — your credits are never used by viewers.</p>
+                <p className="text-xs text-muted-foreground">Read-only. Viewers never use your credits.</p>
               </div>
             </div>
             <Switch checked={state.enabled} disabled={busy} onCheckedChange={(v) => update({ enabled: v, allowRemix: state.allowRemix })} data-testid="share-toggle" />

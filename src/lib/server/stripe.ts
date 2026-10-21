@@ -60,7 +60,7 @@ export async function handleStripeEvent(event: Stripe.Event) {
           userId,
           amountMicros: usdToMicros(usd),
           type: "purchase",
-          description: `Credit pack — $${usd}`,
+          description: `Credit pack: $${usd}`,
           reference: `stripe:checkout:${session.id}`,
           metadata: { sessionId: session.id },
         });
@@ -91,7 +91,7 @@ export async function handleStripeEvent(event: Stripe.Event) {
         userId: u.id,
         amountMicros: usdToMicros(def.monthlyCreditsUsd),
         type: "subscription",
-        description: `${def.name} plan — monthly credits`,
+        description: `${def.name} plan: monthly credits`,
         reference: `stripe:invoice:${invoice.id}`,
       });
       if (u.plan !== plan) await db.update(user).set({ plan }).where(eq(user.id, u.id));
